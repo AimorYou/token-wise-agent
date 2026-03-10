@@ -42,10 +42,9 @@ MODEL_PRICING: dict[str, dict[str, float]] = {
         "cache_write": 1.0,
         "cache_read": 0.08,
     },
-    # polza.ai (prices in ₽ converted at ~88 ₽/$)
     "qwen/qwen3-coder-next": {
-        "input": 0.489,   # 43.04 ₽/M ÷ 88
-        "output": 1.174,  # 103.31 ₽/M ÷ 88
+        "input": 0.489,
+        "output": 1.174,
         "cache_write": 0.0,
         "cache_read": 0.0,
     },
