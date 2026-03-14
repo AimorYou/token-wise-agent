@@ -9,6 +9,7 @@ Usage:
     uv run run.py --model openai/gpt-4o "task"
     uv run run.py --model openai/llama3 --base-url http://localhost:11434/v1 "task"
     uv run run.py --quiet "task"
+    uv run run.py --prompt-config path/to/config.yaml "task"
 
 Environment variables (or .env file):
     ANTHROPIC_API_KEY    — for Anthropic models
@@ -35,11 +36,12 @@ from openhands.sdk.tool import Tool, list_registered_tools
 
 # Register OpenHands built-in tools
 from openhands.tools.terminal.definition import TerminalTool  # noqa: F401
+from openhands.sdk.conversation.visualizer import DefaultConversationVisualizer  # noqa: F401
 
-# Register our custom tools (bash, grep, smart_read)
+# Register our custom tools (bash, grep, smart_read, submit)
 import agent.tools  # noqa: F401
 
-from agent.config import AgentConfig
+from agent.config import AgentConfig, PromptConfig
 from agent.token_tracker import TokenTracker, populate_from_llm_metrics
 
 
@@ -52,6 +54,7 @@ def build_tools(config: AgentConfig) -> list[Tool]:
       BashTool      → "bash"       (custom: stateless subprocess, simpler)
       GrepTool      → "grep"       (custom: regex search with context lines)
       SmartReadTool → "smart_read" (custom: read file with optional line range)
+      SubmitTool    → "submit"     (custom: signal task completion)
 
     Add Tool(name="your_tool") here when you add a new custom tool.
     """
@@ -60,6 +63,7 @@ def build_tools(config: AgentConfig) -> list[Tool]:
         Tool(name="bash"),        # stateless subprocess bash (custom)
         Tool(name="grep"),        # regex search with context (custom)
         Tool(name="smart_read"),  # file reader with line range (custom)
+        Tool(name="submit"),      # signal task completion (custom)
     ]
     return [t for t in all_tools if t.name not in config.disabled_tools]
 
@@ -74,15 +78,23 @@ def main() -> None:
     parser.add_argument("--api-key", help="API key override")
     parser.add_argument("--max-steps", type=int, help="Override max steps")
     parser.add_argument("--quiet", action="store_true", help="Suppress verbose output")
+    parser.add_argument(
+        "--prompt-config", metavar="YAML",
+        help="Path to prompt config YAML (default: agent/prompt_config.yaml)",
+    )
     args = parser.parse_args()
 
     config = AgentConfig()
+    if args.prompt_config:
+        config.prompts = PromptConfig.load(args.prompt_config)
     if args.model:
         config.model = args.model
     if args.base_url:
         config.base_url = args.base_url
     if args.max_steps:
         config.max_steps = args.max_steps
+    else:
+        config.max_steps = config.prompts.step_limit
     if args.quiet:
         config.verbose = False
     if args.disable:
@@ -118,11 +130,16 @@ def main() -> None:
     if config.base_url:
         llm_kwargs["base_url"] = config.base_url
 
-    agent = Agent(llm=LLM(**llm_kwargs), tools=tools)
+    # Use our custom system prompt template (absolute path)
+    agent = Agent(
+        llm=LLM(**llm_kwargs),
+        tools=tools,
+        system_prompt_filename=config.prompts.system_prompt_path,
+    )
 
-    from openhands.sdk.conversation.visualizer import DefaultConversationVisualizer
     visualizer = DefaultConversationVisualizer if config.verbose else None
-
+    
+    rendered_task = config.prompts.render_instance(args.task)
     conversation = LocalConversation(
         agent=agent,
         workspace=config.working_dir,
@@ -130,7 +147,7 @@ def main() -> None:
         visualizer=visualizer,
     )
     try:
-        conversation.send_message(args.task)
+        conversation.send_message(rendered_task)
         conversation.run()
         final = get_agent_final_response(conversation.state.events)
     finally:

@@ -1,0 +1,31 @@
+agent:
+  # Jinja2 system prompt template (relative to agent/prompts/)
+  system_template: "system_prompt.j2"
+
+  # Template for formatting the task/issue for the agent.
+  # Available variables: {{task}}
+  instance_template: |
+    <issue_description>
+    {{task}}
+    </issue_description>
+
+    <instructions>
+    Read the issue above carefully. The source code is in the `src/` directory
+    of your current working directory.
+
+    Follow this workflow:
+    1. Read and understand the relevant source files
+    2. Identify the root cause of the bug
+    3. Fix the bug with minimal changes
+    4. Optionally verify your fix by writing and running a small test script
+    5. Call the `submit` tool with a short explanation
+
+    Do NOT look for or try to run any test files — there are none in your workspace.
+    Do NOT create new source files — only modify existing ones.
+    </instructions>
+
+  # Max steps before the agent is stopped
+  step_limit: 30
+
+  # Max cost in USD before the agent is stopped (0 = unlimited)
+  cost_limit: 0

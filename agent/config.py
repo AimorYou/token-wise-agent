@@ -1,5 +1,5 @@
 """
-Agent configuration loaded from environment variables / .env file.
+Agent configuration loaded from environment variables / .env file + YAML prompt config.
 
 Model ID format:  <provider>/<model-name>
   The provider is always the FIRST segment; model name is everything after it.
@@ -20,10 +20,17 @@ API key resolution order:
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 
+import yaml
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# --- paths relative to this file ---
+_AGENT_DIR = Path(__file__).resolve().parent
+_DEFAULT_PROMPT_CONFIG = _AGENT_DIR / "prompt_config.yaml"
+_PROMPTS_DIR = _AGENT_DIR / "prompts"
 
 
 def _resolve_api_key(model: str) -> str | None:
@@ -35,6 +42,40 @@ def _resolve_api_key(model: str) -> str | None:
     if provider == "openai":
         return os.getenv("OPENAI_API_KEY")
     return os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+
+
+@dataclass
+class PromptConfig:
+    """Prompt templates loaded from YAML config."""
+
+    system_template: str = "system_prompt.j2"
+    instance_template: str = "{{task}}"
+    step_limit: int = 30
+    cost_limit: float = 0
+
+    @classmethod
+    def load(cls, path: str | Path | None = None) -> "PromptConfig":
+        path = Path(path) if path else _DEFAULT_PROMPT_CONFIG
+        if not path.exists():
+            return cls()
+        with open(path) as f:
+            raw = yaml.safe_load(f) or {}
+        agent_cfg = raw.get("agent", {})
+        return cls(
+            system_template=agent_cfg.get("system_template", cls.system_template),
+            instance_template=agent_cfg.get("instance_template", cls.instance_template),
+            step_limit=agent_cfg.get("step_limit", cls.step_limit),
+            cost_limit=agent_cfg.get("cost_limit", cls.cost_limit),
+        )
+
+    @property
+    def system_prompt_path(self) -> str:
+        """Absolute path to the system prompt Jinja2 template."""
+        return str(_PROMPTS_DIR / self.system_template)
+
+    def render_instance(self, task: str) -> str:
+        """Render the instance template with the given task text."""
+        return self.instance_template.replace("{{task}}", task)
 
 
 @dataclass
@@ -65,6 +106,9 @@ class AgentConfig:
             if t.strip()
         ]
     )
+
+    # Prompt configuration (loaded from YAML)
+    prompts: PromptConfig = field(default_factory=PromptConfig.load)
 
     @property
     def api_key(self) -> str | None:
