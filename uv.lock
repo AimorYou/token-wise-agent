@@ -1058,6 +1058,8 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "numpy" },
+    { name = "pandas" },
     { name = "pytest" },
 ]
 
@@ -1069,7 +1071,11 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.0.2" }]
+dev = [
+    { name = "numpy", specifier = ">=1.26.0" },
+    { name = "pandas", specifier = ">=2.2.0" },
+    { name = "pytest", specifier = ">=9.0.2" },
+]
 
 [[package]]
 name = "cycler"

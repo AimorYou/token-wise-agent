@@ -17,5 +17,7 @@ pythonpath = ["."]
 
 [dependency-groups]
 dev = [
+    "numpy>=1.26.0",
+    "pandas>=2.2.0",
     "pytest>=9.0.2",
 ]
