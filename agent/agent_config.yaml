@@ -9,17 +9,23 @@ agent:
     {{task}}
     </issue_description>
 
+    <environment>
+    Your working directory is the project root. Do NOT use /testbed or any absolute paths.
+    Source code is in the `src/` subdirectory. Use relative paths (e.g. `src/module.py`).
+    </environment>
+
     <instructions>
-    Read the issue above carefully. The source code is in the `src/` directory
-    of your current working directory.
+    Read the issue above carefully.
 
     Follow this workflow:
-    1. Read and understand the relevant source files
+    1. Read and understand the relevant source files in `src/`
     2. Identify the root cause of the bug
-    3. Fix the bug with minimal changes
-    4. Optionally verify your fix by writing and running a small test script
-    5. Call the `submit` tool with a short explanation
+    3. Fix the bug using `smart_editor` (replace or patch command)
+    4. Verify your fix by running a small test script with `bash`
+    5. Call `submit` with a short explanation of what you changed
 
+    CRITICAL: You MUST edit the source files with `smart_editor` BEFORE calling `submit`.
+    Submitting without making changes means the task is NOT solved.
     Do NOT look for or try to run any test files — there are none in your workspace.
     Do NOT create new source files — only modify existing ones.
     </instructions>
@@ -36,4 +42,5 @@ agent:
     - bash
     - grep
     - smart_read
+    - smart_editor
     - submit

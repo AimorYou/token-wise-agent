@@ -62,7 +62,7 @@ class _SubmitExecutor(ToolExecutor):
         # Signal the conversation loop to stop
         if conversation is not None:
             from openhands.sdk.conversation.state import ConversationExecutionStatus
-            conversation._state.execution_status = ConversationExecutionStatus.≈
+            conversation._state.execution_status = ConversationExecutionStatus.FINISHED
 
         return SubmitObservation.from_text(
             "Submission recorded. Agent stopped."

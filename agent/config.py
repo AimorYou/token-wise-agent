@@ -34,7 +34,7 @@ _PROMPTS_DIR = _AGENT_DIR / "prompts"
 _SDK_BUILTIN_TOOLS = {"think": "ThinkTool", "finish": "FinishTool"}
 
 # Default tool set when nothing is specified in config
-_DEFAULT_TOOLS = ["bash", "bash_session", "grep", "smart_read", "submit", "think", "finish"]
+_DEFAULT_TOOLS = ["bash", "bash_session", "grep", "smart_read", "smart_editor", "submit", "think", "finish"]
 
 
 def _resolve_api_key() -> str | None:

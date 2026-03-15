@@ -19,5 +19,6 @@ agent:
     - bash
     - grep
     - smart_read
+    - smart_editor
     - think
     - finish
