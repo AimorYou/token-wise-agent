@@ -99,6 +99,7 @@ def main() -> None:
     llm_kwargs = dict(model=config.model, api_key=SecretStr(config.api_key))
     if config.base_url:
         llm_kwargs["base_url"] = config.base_url
+    llm_kwargs.update(config.yaml_config.llm_params)
 
     agent = Agent(
         llm=LLM(**llm_kwargs),

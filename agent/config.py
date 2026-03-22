@@ -51,6 +51,7 @@ class AgentYamlConfig:
     step_limit: int = 30
     cost_limit: float = 0
     tools: list[str] = field(default_factory=lambda: list(_DEFAULT_TOOLS))
+    llm_params: dict = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: str | Path | None = None) -> "AgentYamlConfig":
@@ -66,6 +67,7 @@ class AgentYamlConfig:
             step_limit=agent_cfg.get("step_limit", cls.step_limit),
             cost_limit=agent_cfg.get("cost_limit", cls.cost_limit),
             tools=agent_cfg.get("tools", list(_DEFAULT_TOOLS)),
+            llm_params=agent_cfg.get("llm_params", {}),
         )
 
     @property

@@ -6,6 +6,10 @@ agent:
   # Available variables: {{task}}
   instance_template: "{{task}}"
 
+  # LLM parameters (temperature, top_p, max_output_tokens, etc.)
+  llm_params:
+    temperature: 0.0
+
   # Max steps before the agent is stopped
   step_limit: 50
 

@@ -18,9 +18,9 @@ from .utils import generate_report
 async def run_pipeline(paths: List[str]) -> List[Record]:
     """Execute the full pipeline and return processed records.
 
-    The returned list **must** be in the same order as *paths*.
+    The returned list would be in the same order as paths.
     """
-    contents = await load_files_async(paths)   # ← may be misordered
+    contents = await load_files_async(paths)
     records = process_batch(contents)
     return records
 
