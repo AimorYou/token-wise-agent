@@ -1,8 +1,16 @@
 """
 SWE-Bench-style benchmark runner.
 
-Запускает агента на задачах: подсовывает issue + код (без тестов),
-ждёт пока агент вызовет submit, затем прогоняет тесты.
+Запускает агента на задачах: подсовывает issue + код + существующие тесты
+(без gold-тестов), ждёт пока агент вызовет submit, затем прогоняет
+gold-тесты для оценки.
+
+Структура задачи:
+    task_XXX/
+    ├── issue.md         — описание бага
+    ├── src/             — код с багом
+    ├── tests/           — существующие тесты (видны агенту, проходят на багнутом коде)
+    └── gold_tests/      — gold-тесты (скрыты от агента, падают на багнутом коде)
 
 Промпт формируется агентом — runner только передаёт текст issue.md.
 Шаблоны промптов живут в agent/agent_config.yaml и agent/prompts/.
@@ -30,9 +38,16 @@ RUN_PY = PROJECT_ROOT / "run.py"
 
 
 def prepare_workspace(task_dir: Path, tmp_root: Path) -> Path:
-    """Копируем задачу во временную директорию БЕЗ tests/."""
+    """Копируем задачу во временную директорию БЕЗ gold_tests/.
+
+    tests/ (существующие тесты) копируются — агент их видит.
+    gold_tests/ (оценочные тесты) НЕ копируются — агент их не видит.
+    """
     workspace = tmp_root / task_dir.name
-    shutil.copytree(task_dir, workspace, ignore=shutil.ignore_patterns("tests", "__pycache__"))
+    shutil.copytree(
+        task_dir, workspace,
+        ignore=shutil.ignore_patterns("gold_tests", "__pycache__"),
+    )
     return workspace
 
 
