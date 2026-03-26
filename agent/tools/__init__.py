@@ -2,6 +2,7 @@
 # Each module calls register_tool() at the bottom upon import.
 from agent.tools import bash          # noqa: F401
 from agent.tools import bash_session  # noqa: F401
+from agent.tools import glob          # noqa: F401
 from agent.tools import grep          # noqa: F401
 from agent.tools import smart_editor  # noqa: F401
 from agent.tools import smart_reader    # noqa: F401
