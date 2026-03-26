@@ -358,40 +358,49 @@ def test_custom_tools_registered():
 
 
 # ---------------------------------------------------------------------------
-# TokenTracker
+# AgentTracker
 # ---------------------------------------------------------------------------
 
-from agent.token_tracker import TokenTracker, make_token_callback
+from agent.agent_tracker import AgentTracker, make_token_callback
 
 
-def test_token_tracker_record():
-    tracker = TokenTracker(model="anthropic/claude-sonnet-4-6")
+def test_agent_tracker_record():
+    tracker = AgentTracker(model="anthropic/claude-sonnet-4-6")
     tracker.record(step=1, input_tokens=100, output_tokens=50)
     tracker.record(step=2, input_tokens=200, output_tokens=80)
 
     assert tracker.total_input == 300
     assert tracker.total_output == 130
-    assert len(tracker.steps) == 2
+    assert tracker.llm_calls == 2
 
 
-def test_token_tracker_cost():
-    tracker = TokenTracker(model="anthropic/claude-sonnet-4-6")
+def test_agent_tracker_cost():
+    tracker = AgentTracker(model="anthropic/claude-sonnet-4-6")
     tracker.record(step=1, input_tokens=1_000_000, output_tokens=0)
     # 1M input tokens at $3.00/M
     assert abs(tracker.total_cost - 3.0) < 0.01
 
 
-def test_token_tracker_model_prefix_stripped():
+def test_agent_tracker_model_prefix_stripped():
     """Cost lookup should work with 'anthropic/model' and 'model' alike."""
-    t1 = TokenTracker(model="anthropic/claude-sonnet-4-6")
-    t2 = TokenTracker(model="claude-sonnet-4-6")
+    t1 = AgentTracker(model="anthropic/claude-sonnet-4-6")
+    t2 = AgentTracker(model="claude-sonnet-4-6")
     t1.record(step=1, input_tokens=1000, output_tokens=500)
     t2.record(step=1, input_tokens=1000, output_tokens=500)
     assert abs(t1.total_cost - t2.total_cost) < 1e-9
 
 
+def test_agent_tracker_tool_metrics():
+    tracker = AgentTracker(model="anthropic/claude-sonnet-4-6")
+    tracker.total_tool_calls = 15
+    tracker.tool_errors = 3
+    s = tracker.summary()
+    assert s["total_tool_calls"] == 15
+    assert s["tool_errors"] == 3
+
+
 def test_make_token_callback():
-    tracker = TokenTracker(model="anthropic/claude-sonnet-4-6")
+    tracker = AgentTracker(model="anthropic/claude-sonnet-4-6")
     cb = make_token_callback(tracker)
 
     class FakeUsage:

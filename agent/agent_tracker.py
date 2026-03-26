@@ -1,14 +1,21 @@
 """
-Token usage tracking across the agent's lifetime.
+Agent metrics tracker.
 
-Tracks input/output/cache tokens per step and in total.
-Provides cost estimation based on model pricing.
+Tracks all agent metrics in one place:
+- Token usage (input/output/cache per LLM call)
+- Cost estimation based on model pricing
+- Tool call counts and errors
+- LLM call count (steps)
 
-Also provides make_token_callback() for OpenHands LocalConversation:
+Also provides populate_from_conversation() to extract tool metrics from events,
+and make_token_callback() for OpenHands LocalConversation streaming.
 
-    tracker = TokenTracker(model="anthropic/claude-sonnet-4-6")
-    cb = make_token_callback(tracker)
-    conversation = LocalConversation(agent, workspace, token_callbacks=[cb])
+Usage:
+    tracker = AgentTracker(model="anthropic/claude-sonnet-4-6")
+    # ... run agent ...
+    populate_from_llm_metrics(tracker, agent)
+    populate_from_events(tracker, conversation.state.events)
+    tracker.print_summary()
 """
 
 from dataclasses import dataclass, field
@@ -19,11 +26,7 @@ from rich.table import Table
 
 
 # Pricing per million tokens (USD).
-# Keys are model names WITHOUT provider prefix:
-#   "anthropic/claude-sonnet-4-6" → key "claude-sonnet-4-6"
-#   "openai/qwen/qwen3-coder-next" → key "qwen/qwen3-coder-next"
 MODEL_PRICING: dict[str, dict[str, float]] = {
-    # Anthropic
     "claude-sonnet-4-6": {
         "input": 3.0,
         "output": 15.0,
@@ -64,9 +67,6 @@ class StepUsage:
         return self.input_tokens + self.output_tokens
 
     def cost(self, model: str) -> float:
-        # Strip only the first segment (provider), keep the rest as model key.
-        # "anthropic/claude-sonnet-4-6"    → "claude-sonnet-4-6"
-        # "openai/qwen/qwen3-coder-next"   → "qwen/qwen3-coder-next"
         parts = model.split("/")
         key = "/".join(parts[1:]) if len(parts) > 1 else model
         pricing = MODEL_PRICING.get(key, {})
@@ -81,9 +81,11 @@ class StepUsage:
 
 
 @dataclass
-class TokenTracker:
+class AgentTracker:
     model: str = "claude-sonnet-4-6"
     steps: list[StepUsage] = field(default_factory=list)
+    total_tool_calls: int = 0
+    tool_errors: int = 0
 
     def record(
         self,
@@ -103,10 +105,9 @@ class TokenTracker:
         self.steps.append(usage)
         return usage
 
-    def _model_key(self) -> str:
-        """Normalize model ID to a pricing key (strip provider prefix only)."""
-        parts = self.model.split("/")
-        return "/".join(parts[1:]) if len(parts) > 1 else self.model
+    @property
+    def llm_calls(self) -> int:
+        return len(self.steps)
 
     @property
     def total_input(self) -> int:
@@ -131,44 +132,40 @@ class TokenTracker:
     def summary(self) -> dict:
         return {
             "model": self.model,
-            "steps": len(self.steps),
+            "llm_calls": self.llm_calls,
             "total_input_tokens": self.total_input,
             "total_output_tokens": self.total_output,
             "total_cache_write_tokens": self.total_cache_write,
             "total_cache_read_tokens": self.total_cache_read,
             "total_cost_usd": round(self.total_cost, 6),
+            "total_tool_calls": self.total_tool_calls,
+            "tool_errors": self.tool_errors,
         }
 
     def print_summary(self, console: Optional[Console] = None) -> None:
         console = console or Console()
-        table = Table(title="Token Usage Summary", show_header=True, header_style="bold cyan")
+        table = Table(title="Agent Summary", show_header=True, header_style="bold cyan")
         table.add_column("Metric", style="dim")
         table.add_column("Value", justify="right")
 
         s = self.summary()
         table.add_row("Model", s["model"])
-        table.add_row("Steps", str(s["steps"]))
+        table.add_row("LLM calls", str(s["llm_calls"]))
+        table.add_row("Total tool calls", str(s["total_tool_calls"]))
+        table.add_row("Tool errors", str(s["tool_errors"]))
+        table.add_row("", "")
         table.add_row("Input tokens", f"{s['total_input_tokens']:,}")
         table.add_row("Output tokens", f"{s['total_output_tokens']:,}")
         table.add_row("Cache write tokens", f"{s['total_cache_write_tokens']:,}")
         table.add_row("Cache read tokens", f"{s['total_cache_read_tokens']:,}")
-        table.add_row("Estimated cost", f"${s['total_cost_usd']:.4f}")
+        table.add_row("", "")
+        table.add_row("Total cost", f"${s['total_cost_usd']:.4f}")
 
         console.print(table)
 
 
-def populate_from_llm_metrics(tracker: TokenTracker, agent: Any) -> None:
-    """
-    Read token usage from agent.llm.metrics.token_usages after conversation.run().
-
-    This is the primary way to track tokens when streaming is disabled (default).
-    Call this after conversation.run() completes.
-
-    Example:
-        conversation.run()
-        populate_from_llm_metrics(tracker, agent)
-        tracker.print_summary()
-    """
+def populate_from_llm_metrics(tracker: AgentTracker, agent: Any) -> None:
+    """Read token usage from agent.llm.metrics.token_usages after conversation.run()."""
     try:
         usages = agent.llm.metrics.token_usages
     except AttributeError:
@@ -183,20 +180,26 @@ def populate_from_llm_metrics(tracker: TokenTracker, agent: Any) -> None:
         )
 
 
-def make_token_callback(tracker: TokenTracker) -> Callable[[Any], None]:
+def populate_from_events(tracker: AgentTracker, events: Any) -> None:
+    """Count tool calls and tool errors from conversation events."""
+    from openhands.sdk.event import ActionEvent, ObservationEvent
+
+    total_tool_calls = 0
+    tool_errors = 0
+    for event in events:
+        if isinstance(event, ActionEvent) and event.tool_name:
+            total_tool_calls += 1
+        if isinstance(event, ObservationEvent) and event.observation.is_error:
+            tool_errors += 1
+    tracker.total_tool_calls = total_tool_calls
+    tracker.tool_errors = tool_errors
+
+
+def make_token_callback(tracker: AgentTracker) -> Callable[[Any], None]:
     """
     Return a ConversationTokenCallbackType for OpenHands LocalConversation.
 
     Pass the result to LocalConversation(token_callbacks=[cb]).
-    The callback inspects every LLMStreamChunk for usage data and records it.
-
-    Example:
-        tracker = TokenTracker(model="anthropic/claude-sonnet-4-6")
-        cb = make_token_callback(tracker)
-        with LocalConversation(agent, workspace, token_callbacks=[cb]) as conv:
-            conv.send_message(task)
-            conv.run()
-        tracker.print_summary()
     """
     step_counter = [0]
 

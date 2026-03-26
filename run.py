@@ -33,7 +33,7 @@ from openhands.sdk.conversation.visualizer import DefaultConversationVisualizer
 import agent.tools  # noqa: F401
 
 from agent.config import AgentConfig, AgentYamlConfig
-from agent.token_tracker import TokenTracker, populate_from_llm_metrics
+from agent.agent_tracker import AgentTracker, populate_from_llm_metrics, populate_from_events
 
 
 def build_tools(yaml_config: AgentYamlConfig) -> list[Tool]:
@@ -94,7 +94,7 @@ def main() -> None:
         sys.exit(1)
 
     tools = build_tools(config.yaml_config)
-    tracker = TokenTracker(model=config.model)
+    tracker = AgentTracker(model=config.model)
 
     llm_kwargs = dict(model=config.model, api_key=SecretStr(config.api_key))
     if config.base_url:
@@ -128,6 +128,7 @@ def main() -> None:
     if final and not config.verbose:
         console.print(f"\n[bold green]Result:[/bold green] {final}")
 
+    populate_from_events(tracker, conversation.state.events)
     tracker.print_summary(console)
 
     # Write metrics to JSON file for programmatic consumption (e.g. benchmarks)
