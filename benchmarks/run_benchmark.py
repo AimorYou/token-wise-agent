@@ -34,6 +34,9 @@ from rich.console import Console
 from rich.table import Table
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from agent.config import AgentYamlConfig
 TASKS_DIR = Path(__file__).resolve().parent / "tasks"
 RUN_PY = PROJECT_ROOT / "run.py"
 
@@ -55,6 +58,7 @@ def run_agent(
     issue_text: str,
     model: str | None,
     max_steps: int,
+    timeout: int,
     agent_config: str | None,
     verbose: bool = False,
 ) -> dict:
@@ -71,12 +75,22 @@ def run_agent(
     cmd.append(issue_text)
 
     start = time.time()
-    if verbose:
-        result = subprocess.run(cmd, text=True, timeout=300, stderr=subprocess.PIPE)
-        result.stdout = ""
-    else:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-    elapsed = time.time() - start
+    try:
+        if verbose:
+            result = subprocess.run(cmd, text=True, timeout=timeout, stderr=subprocess.PIPE)
+            result.stdout = ""
+        else:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        elapsed = time.time() - start
+        stdout = result.stdout
+        stderr = result.stderr
+        returncode = result.returncode
+    except subprocess.TimeoutExpired:
+        elapsed = time.time() - start
+        console.print(f"  [red]Agent timed out after {timeout}s[/red]")
+        stdout = ""
+        stderr = f"TIMEOUT after {timeout}s"
+        returncode = -1
 
     submission_path = workspace / "SUBMISSION.json"
     submitted = submission_path.exists()
@@ -89,9 +103,9 @@ def run_agent(
         "elapsed_seconds": round(elapsed, 1),
         "submitted": submitted,
         "explanation": explanation,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "returncode": result.returncode,
+        "stdout": stdout,
+        "stderr": stderr,
+        "returncode": returncode,
     }
 
 
@@ -158,6 +172,7 @@ def run_single_task(
     task_dir: Path,
     model: str | None,
     max_steps: int,
+    timeout: int,
     agent_config: str | None,
     verbose: bool = False,
 ) -> dict:
@@ -167,7 +182,7 @@ def run_single_task(
         issue_text = (task_dir / "issue.md").read_text()
 
         console.print(f"  Running agent...")
-        agent_result = run_agent(workspace, issue_text, model, max_steps, agent_config, verbose)
+        agent_result = run_agent(workspace, issue_text, model, max_steps, timeout, agent_config, verbose)
 
         console.print(f"  Agent finished in {agent_result['elapsed_seconds']}s, "
                        f"submitted={agent_result['submitted']}")
@@ -202,33 +217,33 @@ def run_single_task(
 
 def print_results_table(results: list[dict]) -> None:
     """Print per-task results as a rich table."""
-    table = Table(title="Results", show_header=True, header_style="bold cyan")
-    table.add_column("Task", style="bold")
-    table.add_column("Status", justify="center")
-    table.add_column("Tests", justify="center")
-    table.add_column("LLM calls", justify="right")
-    table.add_column("Tool calls", justify="right")
-    table.add_column("Errors", justify="right")
-    table.add_column("Cost", justify="right")
-    table.add_column("Time", justify="right")
+    table = Table(title="Results", show_header=True, header_style="bold cyan", min_width=90)
+    table.add_column("Task", style="bold", no_wrap=True)
+    table.add_column("Status", justify="center", no_wrap=True)
+    table.add_column("Tests", justify="center", no_wrap=True)
+    table.add_column("LLM", justify="right", no_wrap=True)
+    table.add_column("Tools", justify="right", no_wrap=True)
+    table.add_column("Errs", justify="right", no_wrap=True)
+    table.add_column("Cost", justify="right", no_wrap=True)
+    table.add_column("Time", justify="right", no_wrap=True)
 
     for r in results:
         status = "[green]PASS[/green]" if r["tests_passed"] else "[red]FAIL[/red]"
         if not r["submitted"]:
-            status = "[yellow]NO SUBMIT[/yellow]"
+            status = "[yellow]NO SUB[/yellow]"
         tp = r.get("tests_passed_count", 0)
         tt = r.get("tests_total", 0)
-        tests_str = f"{tp}/{tt}"
 
+        task_name = r["task"].removeprefix("task_")
         table.add_row(
-            r["task"],
+            task_name,
             status,
-            tests_str,
+            f"{tp}/{tt}",
             str(r.get("llm_calls", "?")),
             str(r.get("total_tool_calls", "?")),
             str(r.get("tool_errors", "?")),
-            f"${r.get('cost_usd', 0):.4f}",
-            f"{r['elapsed_seconds']}s",
+            f"${r.get('cost_usd', 0):.2f}",
+            f"{r['elapsed_seconds']:.0f}s",
         )
 
     console.print()
@@ -253,14 +268,15 @@ def print_summary_table(results: list[dict]) -> None:
     total_cost = sum(r.get("cost_usd", 0) for r in results)
 
     tests_pct = round(100 * total_tp / total_tt) if total_tt > 0 else 0
+    submit_pct = round(100 * tasks_submitted / n) if n > 0 else 0
     pass_pct = round(100 * tasks_passed / n) if n > 0 else 0
 
-    table = Table(title="Summary", show_header=True, header_style="bold cyan")
+    table = Table(title="Summary", show_header=True, header_style="bold cyan", show_edge=True)
     table.add_column("Metric", style="dim")
     table.add_column("Value", justify="right")
 
     table.add_row("pass@1", f"{tasks_passed}/{n} ({pass_pct}%)")
-    table.add_row("Submitted", f"{tasks_submitted}/{n}")
+    table.add_row("Submitted", f"{tasks_submitted}/{n} ({submit_pct}%)")
     table.add_row("Tests passed", f"{total_tp}/{total_tt} ({tests_pct}%)")
     table.add_row("", "")
     table.add_row("Input tokens", f"{total_input:,}")
@@ -296,12 +312,15 @@ def main():
         console.print("[red]No tasks found.[/red]")
         sys.exit(1)
 
+    yaml_cfg = AgentYamlConfig.load(args.agent_config)
+    timeout = yaml_cfg.timeout
+
     console.print(f"Running {len(task_dirs)} task(s)...\n")
 
     results = []
     for task_dir in task_dirs:
         console.rule(f"[bold]{task_dir.name}[/bold]")
-        r = run_single_task(task_dir, args.model, args.max_steps, args.agent_config, not args.quiet)
+        r = run_single_task(task_dir, args.model, args.max_steps, timeout, args.agent_config, not args.quiet)
         results.append(r)
 
     print_results_table(results)
