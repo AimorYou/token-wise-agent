@@ -21,6 +21,7 @@ agent:
   tools:
     - bash_session
     - bash
+    - glob
     - grep
     - smart_reader
     - smart_editor

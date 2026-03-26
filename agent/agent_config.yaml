@@ -5,30 +5,12 @@ agent:
   # Template for formatting the task/issue for the agent.
   # Available variables: {{task}}
   instance_template: |
-    <issue_description>
+    <issue>
     {{task}}
-    </issue_description>
+    </issue>
 
-    <environment>
-    Your working directory is the project root. Do NOT use /testbed or any absolute paths.
-    Source code is in the `src/` subdirectory. Use relative paths (e.g. `src/module.py`).
-    </environment>
-
-    <instructions>
-    Read the issue above carefully.
-
-    Follow this workflow:
-    1. Read and understand the relevant source files in `src/`
-    2. Look at existing tests in `tests/` to understand expected behavior
-    3. Identify the root cause of the bug
-    4. Fix the bug using `smart_editor` (replace or patch command)
-    5. Run existing tests with `bash` to verify your fix doesn't break anything: `python -m pytest tests/ -v`
-    6. Call `submit` with a short explanation of what you changed
-
-    CRITICAL: You MUST edit the source files with `smart_editor` BEFORE calling `submit`.
-    Submitting without making changes means the task is NOT solved.
-    Do NOT create new source files — only modify existing ones.
-    </instructions>
+    Fix the bug described above. All paths are relative to `.` (the current working directory).
+    Edit source files in `src/` with `smart_editor`, verify once with `python -m pytest tests/ -v`, then call `submit`.
 
   # LLM parameters (temperature, top_p, max_output_tokens, etc.)
   # All values are passed directly to the LLM constructor.
@@ -41,10 +23,14 @@ agent:
   # Max cost in USD before the agent is stopped (0 = unlimited)
   cost_limit: 0
 
+  # Timeout in seconds for the agent per task (0 = unlimited)
+  timeout: 600
+
   # Whitelist of tools available to the agent.
   # SWE-bench mode: no think/finish — agent works through bash, grep, smart_reader, submit.
   tools:
     - bash
+    - glob
     - grep
     - smart_reader
     - smart_editor
