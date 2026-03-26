@@ -46,6 +46,10 @@ class BashAction(Action):
     """Run a bash command in a fresh subprocess."""
 
     command: str = Field(description="The bash command to execute.")
+    description: str = Field(
+        default="",
+        description="Short description of what the command does (for logging).",
+    )
     timeout: int | None = Field(
         default=None,
         description="Timeout in seconds. Defaults to the tool's configured timeout.",
