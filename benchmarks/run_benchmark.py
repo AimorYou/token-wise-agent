@@ -18,6 +18,11 @@ Usage:
     uv run python benchmarks/run_benchmark.py --model anthropic/claude-opus-4-6 task_001
     uv run python benchmarks/run_benchmark.py --quiet task_001
     uv run python benchmarks/run_benchmark.py --agent-config custom.yaml task_001
+
+    # Docker mode (task code mounted at /testbed inside container)
+    uv run python benchmarks/run_benchmark.py --docker task_001
+    uv run python benchmarks/run_benchmark.py --docker --docker-build task_001
+    uv run python benchmarks/run_benchmark.py --docker --docker-image myrepo/agent:v1 task_001
 """
 
 import argparse
@@ -53,6 +58,40 @@ def prepare_workspace(task_dir: Path, tmp_root: Path) -> Path:
     return workspace
 
 
+DOCKER_IMAGE_DEFAULT = "custom-code-agent:latest"
+
+
+def _build_agent_cmd(
+    working_dir: str,
+    issue_text: str,
+    model: str | None,
+    max_steps: int,
+    agent_config_in_container: str | None,
+    verbose: bool,
+) -> list[str]:
+    """Build the run.py argument list (shared between local and docker modes)."""
+    cmd = ["--working-dir", working_dir, "--max-steps", str(max_steps)]
+    if model:
+        cmd += ["--model", model]
+    if agent_config_in_container:
+        cmd += ["--agent-config", agent_config_in_container]
+    if not verbose:
+        cmd.append("--quiet")
+    cmd.append(issue_text)
+    return cmd
+
+
+def _collect_result(workspace: Path, start: float) -> tuple[float, bool, str]:
+    elapsed = round(time.time() - start, 1)
+    submission_path = workspace / "SUBMISSION.json"
+    submitted = submission_path.exists()
+    explanation = ""
+    if submitted:
+        data = json.loads(submission_path.read_text())
+        explanation = data.get("explanation", "")
+    return elapsed, submitted, explanation
+
+
 def run_agent(
     workspace: Path,
     issue_text: str,
@@ -62,17 +101,9 @@ def run_agent(
     agent_config: str | None,
     verbose: bool = False,
 ) -> dict:
-    """Запускаем агента через run.py."""
+    """Запускаем агента через run.py (локально)."""
     cmd = [sys.executable, str(RUN_PY)]
-    cmd += ["--working-dir", str(workspace)]
-    cmd += ["--max-steps", str(max_steps)]
-    if model:
-        cmd += ["--model", model]
-    if agent_config:
-        cmd += ["--agent-config", agent_config]
-    if not verbose:
-        cmd.append("--quiet")
-    cmd.append(issue_text)
+    cmd += _build_agent_cmd(str(workspace), issue_text, model, max_steps, agent_config, verbose)
 
     start = time.time()
     try:
@@ -81,32 +112,110 @@ def run_agent(
             result.stdout = ""
         else:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        elapsed = time.time() - start
-        stdout = result.stdout
-        stderr = result.stderr
-        returncode = result.returncode
+        elapsed, submitted, explanation = _collect_result(workspace, start)
+        return {
+            "elapsed_seconds": elapsed,
+            "submitted": submitted,
+            "explanation": explanation,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "returncode": result.returncode,
+        }
     except subprocess.TimeoutExpired:
-        elapsed = time.time() - start
+        elapsed = round(time.time() - start, 1)
         console.print(f"  [red]Agent timed out after {timeout}s[/red]")
-        stdout = ""
-        stderr = f"TIMEOUT after {timeout}s"
-        returncode = -1
+        return {
+            "elapsed_seconds": elapsed,
+            "submitted": False,
+            "explanation": "",
+            "stdout": "",
+            "stderr": f"TIMEOUT after {timeout}s",
+            "returncode": -1,
+        }
 
-    submission_path = workspace / "SUBMISSION.json"
-    submitted = submission_path.exists()
-    explanation = ""
-    if submitted:
-        data = json.loads(submission_path.read_text())
-        explanation = data.get("explanation", "")
 
-    return {
-        "elapsed_seconds": round(elapsed, 1),
-        "submitted": submitted,
-        "explanation": explanation,
-        "stdout": stdout,
-        "stderr": stderr,
-        "returncode": returncode,
-    }
+def docker_image_exists(image: str) -> bool:
+    result = subprocess.run(
+        ["docker", "image", "inspect", image],
+        capture_output=True,
+    )
+    return result.returncode == 0
+
+
+def docker_build(image: str) -> None:
+    console.print(f"  [cyan]Building Docker image {image!r}...[/cyan]")
+    result = subprocess.run(
+        ["docker", "build", "-t", image, str(PROJECT_ROOT)],
+        text=True,
+    )
+    if result.returncode != 0:
+        console.print("[red]Docker build failed.[/red]")
+        sys.exit(1)
+
+
+def run_agent_docker(
+    workspace: Path,
+    issue_text: str,
+    model: str | None,
+    max_steps: int,
+    timeout: int,
+    agent_config: str | None,
+    image: str,
+    verbose: bool = False,
+) -> dict:
+    """Запускаем агента внутри Docker-контейнера.
+
+    Task workspace монтируется в /testbed, агентский код живёт в /app образа.
+    API-ключи пробрасываются через --env-file .env.
+    """
+    # Inside the container agent_config lives at /app/agent/agent_config.yaml by default.
+    # If caller overrides it, we mount the file and pass the in-container path.
+    extra_mounts: list[str] = []
+    config_in_container: str | None = None
+    if agent_config:
+        host_cfg = Path(agent_config).resolve()
+        config_in_container = f"/app/custom_agent_config.yaml"
+        extra_mounts = ["-v", f"{host_cfg}:{config_in_container}:ro"]
+
+    env_file = PROJECT_ROOT / ".env"
+    agent_args = _build_agent_cmd("/testbed", issue_text, model, max_steps, config_in_container, verbose)
+
+    cmd = ["docker", "run", "--rm"]
+    cmd += ["-v", f"{workspace}:/testbed"]
+    cmd += extra_mounts
+    if env_file.exists():
+        cmd += ["--env-file", str(env_file)]
+    cmd += ["--timeout", str(timeout)] if False else []  # docker run has no --timeout; handled via subprocess
+    cmd.append(image)
+    cmd += agent_args
+
+    start = time.time()
+    try:
+        if verbose:
+            result = subprocess.run(cmd, text=True, timeout=timeout, stderr=subprocess.PIPE)
+            result.stdout = ""
+        else:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        elapsed, submitted, explanation = _collect_result(workspace, start)
+        return {
+            "elapsed_seconds": elapsed,
+            "submitted": submitted,
+            "explanation": explanation,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "returncode": result.returncode,
+        }
+    except subprocess.TimeoutExpired:
+        elapsed = round(time.time() - start, 1)
+        console.print(f"  [red]Agent timed out after {timeout}s[/red]")
+        return {
+            "elapsed_seconds": elapsed,
+            "submitted": False,
+            "explanation": "",
+            "stdout": "",
+            "stderr": f"TIMEOUT after {timeout}s",
+            "returncode": -1,
+        }
 
 
 def run_gold_tests(task_dir: Path, workspace: Path) -> dict:
@@ -175,14 +284,23 @@ def run_single_task(
     timeout: int,
     agent_config: str | None,
     verbose: bool = False,
+    docker: bool = False,
+    docker_image: str = DOCKER_IMAGE_DEFAULT,
 ) -> dict:
     """Полный цикл для одной задачи."""
     with tempfile.TemporaryDirectory(prefix="bench_") as tmp_root:
         workspace = prepare_workspace(task_dir, Path(tmp_root))
         issue_text = (task_dir / "issue.md").read_text()
 
-        console.print(f"  Running agent...")
-        agent_result = run_agent(workspace, issue_text, model, max_steps, timeout, agent_config, verbose)
+        mode = "[cyan]docker[/cyan]" if docker else "local"
+        console.print(f"  Running agent ({mode})...")
+        if docker:
+            agent_result = run_agent_docker(
+                workspace, issue_text, model, max_steps, timeout,
+                agent_config, docker_image, verbose,
+            )
+        else:
+            agent_result = run_agent(workspace, issue_text, model, max_steps, timeout, agent_config, verbose)
 
         console.print(f"  Agent finished in {agent_result['elapsed_seconds']}s, "
                        f"submitted={agent_result['submitted']}")
@@ -302,6 +420,10 @@ def main():
     parser.add_argument("--agent-config", help="Path to agent config YAML override")
     parser.add_argument("--quiet", action="store_true", help="Suppress agent thoughts and tool calls")
     parser.add_argument("--save", help="Save results to JSON file")
+    # Docker flags
+    parser.add_argument("--docker", action="store_true", help="Run agent inside Docker container (task mounted at /testbed)")
+    parser.add_argument("--docker-image", default=DOCKER_IMAGE_DEFAULT, help=f"Docker image to use (default: {DOCKER_IMAGE_DEFAULT})")
+    parser.add_argument("--docker-build", action="store_true", help="Force rebuild of Docker image before running")
     args = parser.parse_args()
 
     task_dirs = sorted(d for d in TASKS_DIR.iterdir() if d.is_dir())
@@ -315,12 +437,21 @@ def main():
     yaml_cfg = AgentYamlConfig.load(args.agent_config)
     timeout = yaml_cfg.timeout
 
+    if args.docker:
+        if args.docker_build or not docker_image_exists(args.docker_image):
+            docker_build(args.docker_image)
+
     console.print(f"Running {len(task_dirs)} task(s)...\n")
 
     results = []
     for task_dir in task_dirs:
         console.rule(f"[bold]{task_dir.name}[/bold]")
-        r = run_single_task(task_dir, args.model, args.max_steps, timeout, args.agent_config, not args.quiet)
+        r = run_single_task(
+            task_dir, args.model, args.max_steps, timeout, args.agent_config,
+            verbose=not args.quiet,
+            docker=args.docker,
+            docker_image=args.docker_image,
+        )
         results.append(r)
 
     print_results_table(results)
