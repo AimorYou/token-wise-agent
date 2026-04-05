@@ -33,6 +33,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
 
 from rich.console import Console
@@ -42,6 +43,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from agent.config import AgentYamlConfig
+from agent.utils import read_submission
 TASKS_DIR = Path(__file__).resolve().parent / "tasks"
 RUN_PY = PROJECT_ROOT / "run.py"
 
@@ -68,28 +70,33 @@ def _build_agent_cmd(
     max_steps: int,
     agent_config_in_container: str | None,
     verbose: bool,
+    run_id: str | None = None,
+    task_id: str | None = None,
 ) -> list[str]:
     """Build the run.py argument list (shared between local and docker modes)."""
-    cmd = ["--working-dir", working_dir, "--max-steps", str(max_steps)]
+    cmd = ["--working-dir", working_dir, "--max-steps", str(max_steps), "--no-save-only-last-traj"]
     if model:
         cmd += ["--model", model]
     if agent_config_in_container:
         cmd += ["--agent-config", agent_config_in_container]
     if not verbose:
         cmd.append("--quiet")
+    if run_id:
+        cmd += ["--run-id", run_id]
+    if task_id:
+        cmd += ["--task-id", task_id]
     cmd.append(issue_text)
     return cmd
 
 
-def _collect_result(workspace: Path, start: float) -> tuple[float, bool, str]:
-    elapsed = round(time.time() - start, 1)
-    submission_path = workspace / "SUBMISSION.json"
-    submitted = submission_path.exists()
-    explanation = ""
-    if submitted:
-        data = json.loads(submission_path.read_text())
-        explanation = data.get("explanation", "")
-    return elapsed, submitted, explanation
+def _collect_result(workspace: Path, fallback_start: float) -> tuple[float, bool, str]:
+    submitted, explanation = read_submission(workspace)
+    metrics_path = workspace / "METRICS.json"
+    try:
+        latency = json.loads(metrics_path.read_text()).get("latency", 0.0)
+    except (OSError, json.JSONDecodeError, KeyError):
+        latency = round(time.time() - fallback_start, 1)
+    return latency, submitted, explanation
 
 
 def run_agent(
@@ -100,10 +107,12 @@ def run_agent(
     timeout: int,
     agent_config: str | None,
     verbose: bool = False,
+    run_id: str | None = None,
+    task_id: str | None = None,
 ) -> dict:
     """Запускаем агента через run.py (локально)."""
     cmd = [sys.executable, str(RUN_PY)]
-    cmd += _build_agent_cmd(str(workspace), issue_text, model, max_steps, agent_config, verbose)
+    cmd += _build_agent_cmd(str(workspace), issue_text, model, max_steps, agent_config, verbose, run_id, task_id)
 
     start = time.time()
     try:
@@ -112,9 +121,9 @@ def run_agent(
             result.stdout = ""
         else:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        elapsed, submitted, explanation = _collect_result(workspace, start)
+        latency, submitted, explanation = _collect_result(workspace, start)
         return {
-            "elapsed_seconds": elapsed,
+            "latency": latency,
             "submitted": submitted,
             "explanation": explanation,
             "stdout": result.stdout,
@@ -122,10 +131,10 @@ def run_agent(
             "returncode": result.returncode,
         }
     except subprocess.TimeoutExpired:
-        elapsed = round(time.time() - start, 1)
+        latency = round(time.time() - start, 1)
         console.print(f"  [red]Agent timed out after {timeout}s[/red]")
         return {
-            "elapsed_seconds": elapsed,
+            "latency": latency,
             "submitted": False,
             "explanation": "",
             "stdout": "",
@@ -162,6 +171,8 @@ def run_agent_docker(
     agent_config: str | None,
     image: str,
     verbose: bool = False,
+    run_id: str | None = None,
+    task_id: str | None = None,
 ) -> dict:
     """Запускаем агента внутри Docker-контейнера.
 
@@ -178,7 +189,7 @@ def run_agent_docker(
         extra_mounts = ["-v", f"{host_cfg}:{config_in_container}:ro"]
 
     env_file = PROJECT_ROOT / ".env"
-    agent_args = _build_agent_cmd("/testbed", issue_text, model, max_steps, config_in_container, verbose)
+    agent_args = _build_agent_cmd("/testbed", issue_text, model, max_steps, config_in_container, verbose, run_id, task_id)
 
     cmd = ["docker", "run", "--rm"]
     cmd += ["-v", f"{workspace}:/testbed"]
@@ -196,9 +207,9 @@ def run_agent_docker(
             result.stdout = ""
         else:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        elapsed, submitted, explanation = _collect_result(workspace, start)
+        latency, submitted, explanation = _collect_result(workspace, start)
         return {
-            "elapsed_seconds": elapsed,
+            "latency": latency,
             "submitted": submitted,
             "explanation": explanation,
             "stdout": result.stdout,
@@ -206,10 +217,10 @@ def run_agent_docker(
             "returncode": result.returncode,
         }
     except subprocess.TimeoutExpired:
-        elapsed = round(time.time() - start, 1)
+        latency = round(time.time() - start, 1)
         console.print(f"  [red]Agent timed out after {timeout}s[/red]")
         return {
-            "elapsed_seconds": elapsed,
+            "latency": latency,
             "submitted": False,
             "explanation": "",
             "stdout": "",
@@ -267,8 +278,6 @@ def read_metrics(workspace: Path) -> dict:
             "llm_calls": data.get("llm_calls", 0),
             "input_tokens": data.get("total_input_tokens", 0),
             "output_tokens": data.get("total_output_tokens", 0),
-            "cache_write_tokens": data.get("total_cache_write_tokens", 0),
-            "cache_read_tokens": data.get("total_cache_read_tokens", 0),
             "cost_usd": data.get("total_cost_usd", 0),
             "total_tool_calls": data.get("total_tool_calls", 0),
             "tool_errors": data.get("tool_errors", 0),
@@ -286,8 +295,10 @@ def run_single_task(
     verbose: bool = False,
     docker: bool = False,
     docker_image: str = DOCKER_IMAGE_DEFAULT,
+    run_id: str | None = None,
 ) -> dict:
     """Полный цикл для одной задачи."""
+    task_id = task_dir.name
     with tempfile.TemporaryDirectory(prefix="bench_") as tmp_root:
         workspace = prepare_workspace(task_dir, Path(tmp_root))
         issue_text = (task_dir / "issue.md").read_text()
@@ -297,12 +308,12 @@ def run_single_task(
         if docker:
             agent_result = run_agent_docker(
                 workspace, issue_text, model, max_steps, timeout,
-                agent_config, docker_image, verbose,
+                agent_config, docker_image, verbose, run_id, task_id,
             )
         else:
-            agent_result = run_agent(workspace, issue_text, model, max_steps, timeout, agent_config, verbose)
+            agent_result = run_agent(workspace, issue_text, model, max_steps, timeout, agent_config, verbose, run_id, task_id)
 
-        console.print(f"  Agent finished in {agent_result['elapsed_seconds']}s, "
+        console.print(f"  Agent finished in {agent_result['latency']}s, "
                        f"submitted={agent_result['submitted']}")
 
         if agent_result["explanation"]:
@@ -327,7 +338,7 @@ def run_single_task(
             "tests_passed": passed,
             "tests_passed_count": tp,
             "tests_total": tt,
-            "elapsed_seconds": agent_result["elapsed_seconds"],
+            "latency": agent_result["latency"],
             "test_output": test_result["test_output"],
             **metrics,
         }
@@ -361,7 +372,7 @@ def print_results_table(results: list[dict]) -> None:
             str(r.get("total_tool_calls", "?")),
             str(r.get("tool_errors", "?")),
             f"${r.get('cost_usd', 0):.2f}",
-            f"{r['elapsed_seconds']:.0f}s",
+            f"{r['latency']:.0f}s",
         )
 
     console.print()
@@ -375,14 +386,12 @@ def print_summary_table(results: list[dict]) -> None:
     tasks_submitted = sum(1 for r in results if r["submitted"])
     total_tp = sum(r.get("tests_passed_count", 0) for r in results)
     total_tt = sum(r.get("tests_total", 0) for r in results)
-    total_latency = sum(r.get("elapsed_seconds", 0) for r in results)
+    total_latency = sum(r.get("latency", 0) for r in results)
     total_llm_calls = sum(r.get("llm_calls", 0) for r in results)
     total_tool_calls = sum(r.get("total_tool_calls", 0) for r in results)
     total_tool_errors = sum(r.get("tool_errors", 0) for r in results)
     total_input = sum(r.get("input_tokens", 0) for r in results)
     total_output = sum(r.get("output_tokens", 0) for r in results)
-    total_cache_write = sum(r.get("cache_write_tokens", 0) for r in results)
-    total_cache_read = sum(r.get("cache_read_tokens", 0) for r in results)
     total_cost = sum(r.get("cost_usd", 0) for r in results)
 
     tests_pct = round(100 * total_tp / total_tt) if total_tt > 0 else 0
@@ -399,8 +408,6 @@ def print_summary_table(results: list[dict]) -> None:
     table.add_row("", "")
     table.add_row("Input tokens", f"{total_input:,}")
     table.add_row("Output tokens", f"{total_output:,}")
-    table.add_row("Cache write tokens", f"{total_cache_write:,}")
-    table.add_row("Cache read tokens", f"{total_cache_read:,}")
     table.add_row("Total cost", f"${total_cost:.4f}")
     table.add_row("", "")
     table.add_row("Avg latency", f"{total_latency / n:.1f}s" if n else "—")
@@ -441,7 +448,8 @@ def main():
         if args.docker_build or not docker_image_exists(args.docker_image):
             docker_build(args.docker_image)
 
-    console.print(f"Running {len(task_dirs)} task(s)...\n")
+    run_id = f"run_{datetime.now():%Y-%m-%d_%H-%M-%S}"
+    console.print(f"Running {len(task_dirs)} task(s)... [dim]run_id={run_id}[/dim]\n")
 
     results = []
     for task_dir in task_dirs:
@@ -451,6 +459,7 @@ def main():
             verbose=not args.quiet,
             docker=args.docker,
             docker_image=args.docker_image,
+            run_id=run_id,
         )
         results.append(r)
 

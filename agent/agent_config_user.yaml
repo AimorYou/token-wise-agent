@@ -17,7 +17,7 @@ agent:
   cost_limit: 0
 
   # Whitelist of tools available to the agent.
-  # User mode: full toolset including persistent shell session, think and finish.
+  # User mode: full toolset including persistent shell session and think.
   tools:
     - bash_session
     - bash
@@ -26,4 +26,4 @@ agent:
     - smart_reader
     - smart_editor
     - think
-    - finish
+    - submit

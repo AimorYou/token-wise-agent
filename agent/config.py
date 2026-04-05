@@ -31,10 +31,10 @@ _DEFAULT_CONFIG = _AGENT_DIR / "agent_config.yaml"
 _PROMPTS_DIR = _AGENT_DIR / "prompts"
 
 # SDK built-in tools that are controlled via Agent(include_default_tools=...)
-_SDK_BUILTIN_TOOLS = {"think": "ThinkTool", "finish": "FinishTool"}
+_SDK_BUILTIN_TOOLS = {"think": "ThinkTool"}
 
 # Default tool set when nothing is specified in config
-_DEFAULT_TOOLS = ["bash", "bash_session", "grep", "smart_reader", "smart_editor", "submit", "think", "finish"]
+_DEFAULT_TOOLS = ["bash", "bash_session", "grep", "smart_reader", "smart_editor", "submit", "think"]
 
 
 def _resolve_api_key() -> str | None:

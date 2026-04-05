@@ -18,6 +18,7 @@ Config sources:
 import argparse
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from pydantic import SecretStr
@@ -34,6 +35,8 @@ import agent.tools  # noqa: F401
 
 from agent.config import AgentConfig, AgentYamlConfig
 from agent.agent_tracker import AgentTracker, populate_from_llm_metrics, populate_from_events
+from agent.utils import read_submission
+from agent.trajectory import get_trajectory_path, get_last_trajectory_path, write_trajectory
 
 
 def build_tools(yaml_config: AgentYamlConfig) -> list[Tool]:
@@ -52,6 +55,12 @@ def main() -> None:
     parser.add_argument("--working-dir", help="Working directory (default: current dir)")
     parser.add_argument("--quiet", action="store_true", help="Suppress verbose output")
     parser.add_argument("--agent-config", metavar="YAML", help="Path to agent config YAML")
+    parser.add_argument("--run-id", help="Run identifier (shared across a benchmark batch)")
+    parser.add_argument("--task-id", help="Task identifier (e.g. task-001-fix-foo)")
+    parser.add_argument(
+        "--save-only-last-traj", action=argparse.BooleanOptionalAction, default=True,
+        help="If true (default), overwrite last_twa_run.traj.json; if false, save to {run_id}/{task_id}.traj.json",
+    )
     args = parser.parse_args()
 
     # Build config: .env defaults + YAML + CLI overrides
@@ -93,18 +102,26 @@ def main() -> None:
         )
         sys.exit(1)
 
+    run_id = args.run_id or f"run_{datetime.now():%Y-%m-%d_%H-%M-%S}"
+    task_id = args.task_id or "task"
+
     tools = build_tools(config.yaml_config)
     tracker = AgentTracker(model=config.model)
-
     llm_kwargs = dict(model=config.model, api_key=SecretStr(config.api_key))
     if config.base_url:
         llm_kwargs["base_url"] = config.base_url
     llm_kwargs.update(config.yaml_config.llm_params)
 
+    system_prompt_path = config.yaml_config.system_prompt_path
+    try:
+        system_prompt = Path(system_prompt_path).read_text(encoding="utf-8")
+    except OSError:
+        system_prompt = system_prompt_path
+
     agent = Agent(
         llm=LLM(**llm_kwargs),
         tools=tools,
-        system_prompt_filename=config.yaml_config.system_prompt_path,
+        system_prompt_filename=system_prompt_path,
         include_default_tools=config.yaml_config.include_default_tools,
     )
 
@@ -117,24 +134,52 @@ def main() -> None:
         max_iteration_per_run=config.effective_max_steps,
         visualizer=visualizer,
     )
+    exit_status = "submitted"
+    started_at = datetime.now().astimezone().isoformat()
+    tracker.start()
     try:
         conversation.send_message(rendered_task)
         conversation.run()
         final = get_agent_final_response(conversation.state.events)
+    except Exception as exc:
+        exit_status = type(exc).__name__
+        final = None
     finally:
+        tracker.stop()
         populate_from_llm_metrics(tracker, agent)
+        populate_from_events(tracker, conversation.state.events)
         conversation.close()
 
     if final and not config.verbose:
         console.print(f"\n[bold green]Result:[/bold green] {final}")
-
-    populate_from_events(tracker, conversation.state.events)
     tracker.print_summary(console)
 
-    # Write metrics to JSON file for programmatic consumption (e.g. benchmarks)
-    metrics_path = Path(config.working_dir) / "METRICS.json"
+    working_dir = Path(config.working_dir)
+    submitted, submission_content = read_submission(working_dir)
+    if submitted:
+        exit_status = "submitted"
+
+    metrics_path = working_dir / "METRICS.json"
     metrics_path.write_text(json.dumps(tracker.summary(), indent=2, ensure_ascii=False))
 
+    traj_path = get_last_trajectory_path() if args.save_only_last_traj else get_trajectory_path(run_id, task_id)
+    try:
+        write_trajectory(
+            path=traj_path,
+            run_id=run_id,
+            task_id=task_id,
+            started_at=started_at,
+            tracker=tracker,
+            events=conversation.state.events,
+            config=config,
+            rendered_task=rendered_task,
+            system_prompt=system_prompt,
+            exit_status=exit_status,
+            submission_content=submission_content,
+        )
+        console.print(f"\n[dim]Trajectory saved → {traj_path}[/dim]")
+    except Exception as exc:
+        console.print(f"\n[red]Failed to save trajectory: {exc}[/red]")
 
 if __name__ == "__main__":
     main()

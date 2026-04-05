@@ -27,7 +27,7 @@ agent:
   timeout: 600
 
   # Whitelist of tools available to the agent.
-  # SWE-bench mode: no think/finish — agent works through bash, grep, smart_reader, submit.
+  # SWE-bench mode: agent works through bash, grep, smart_reader, submit.
   tools:
     - bash
     - glob
