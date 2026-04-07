@@ -151,7 +151,7 @@ agent:
 | `smart_reader` | Кастомный | Чтение файла: диапазон строк, контекст вокруг строки, авто-truncation |
 | `smart_editor` | Кастомный | Редактирование файлов: patch, replace, insert, create, delete, undo |
 | `submit` | Кастомный | Сигнал завершения — останавливает агента |
-| `think` | SDK built-in | Внутренний "размышление" (только в user-конфиге) |
+| `think` | SDK built-in | Внутренний "размышление" |
 | `finish` | SDK built-in | Завершение задачи (только в user-конфиге) |
 
 ---
