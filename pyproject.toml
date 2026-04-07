@@ -1,5 +1,5 @@
 [project]
-name = "custom-code-agent"
+name = "token-wise-agent"
 version = "0.1.0"
 description = "Custom code agent with pluggable tools and token tracking, built on OpenHands SDK"
 requires-python = ">=3.12"

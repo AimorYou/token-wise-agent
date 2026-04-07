@@ -60,7 +60,7 @@ def prepare_workspace(task_dir: Path, tmp_root: Path) -> Path:
     return workspace
 
 
-DOCKER_IMAGE_DEFAULT = "custom-code-agent:latest"
+DOCKER_IMAGE_DEFAULT = "token-wise-agent:latest"
 
 
 def _build_agent_cmd(

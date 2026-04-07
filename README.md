@@ -1,4 +1,4 @@
-# custom-code-agent
+# token-wise-agent
 
 Кастомный агент для написания кода, построенный на [OpenHands SDK](https://github.com/All-Hands-AI/OpenHands).
 
@@ -24,7 +24,7 @@ run.py                          ← entry point
 ```
 
 ```
-custom-code-agent/
+token-wise-agent/
 ├── agent/
 │   ├── agent_config.yaml         # Конфиг для SWE-bench: промпты, tools, step_limit
 │   ├── agent_config_user.yaml    # Конфиг для пользовательского режима
@@ -58,7 +58,7 @@ custom-code-agent/
 
 ```bash
 git clone <repo-url>
-cd custom-code-agent
+cd token-wise-agent
 
 uv sync
 cp .env.example .env
@@ -80,7 +80,7 @@ uv run run.py --quiet "задача"
 uv run run.py --model anthropic/claude-opus-4-6 "задача"
 
 # Пользовательский конфиг (с think/finish/bash_session)
-uv run run.py --agent-config agent/agent_config_user.yaml "задача"
+uv run run.py --agent-config agent/agent_config_user.yaml "задача"  # с think/bash_session
 
 # Указать рабочую директорию
 uv run run.py --working-dir /path/to/project "задача"
@@ -125,8 +125,8 @@ agent:
 ```
 
 Два готовых конфига:
-- `agent_config.yaml` — SWE-bench режим (без think/finish)
-- `agent_config_user.yaml` — пользовательский (с think/finish/bash_session)
+- `agent_config.yaml` — SWE-bench режим (без think)
+- `agent_config_user.yaml` — пользовательский (с think/bash_session)
 
 ### CLI аргументы — рантайм-оверрайды
 
@@ -152,7 +152,6 @@ agent:
 | `smart_editor` | Кастомный | Редактирование файлов: patch, replace, insert, create, delete, undo |
 | `submit` | Кастомный | Сигнал завершения — останавливает агента |
 | `think` | SDK built-in | Внутренний "размышление" |
-| `finish` | SDK built-in | Завершение задачи (только в user-конфиге) |
 
 ---
 

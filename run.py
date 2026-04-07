@@ -1,5 +1,5 @@
 """
-Entry point for the custom code agent (OpenHands SDK).
+Entry point for the token-wise-agent (OpenHands SDK).
 
 Usage:
     uv run run.py "Fix the failing tests"

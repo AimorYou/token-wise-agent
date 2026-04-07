@@ -13,7 +13,7 @@ agent_config.yaml (agent behavior):
     step_limit — max agent steps
     tools — whitelist of enabled tools
 
-Everything else (working_dir, verbose) comes from CLI args.
+Everything else (max_steps, working_dir, verbose) comes from CLI args.
 """
 
 import os
