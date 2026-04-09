@@ -41,7 +41,7 @@ uv run python benchmarks/run_benchmark.py --quiet task_001
 uv run python benchmarks/run_benchmark.py --model anthropic/claude-opus-4-6 task_001
 
 # Другой конфиг
-uv run python benchmarks/run_benchmark.py --agent-config custom.yaml task_001
+uv run python benchmarks/run_benchmark.py --agent-config configs/agent_config_user.yaml task_001
 
 # Сохранить результаты в JSON
 uv run python benchmarks/run_benchmark.py --save results.json
@@ -56,7 +56,7 @@ run_benchmark.py
   │      (агент видит src/ + tests/, но НЕ видит gold_tests/)
   │
   ├── 2. Читает issue.md → передаёт агенту как task
-  │      (агент оборачивает через instance_template из agent_config.yaml)
+  │      (агент оборачивает через instance_template из configs/agent_config.yaml)
   │
   ├── 3. Запускает агента: run.py --working-dir /tmp/... <issue>
   │      (агент может запускать tests/ для проверки)

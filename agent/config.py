@@ -8,7 +8,7 @@ Two sources of config, each with a clear responsibility:
     AGENT_BASE_URL   — custom API endpoint
     AGENT_MODEL      — litellm model ID
 
-agent_config.yaml (agent behavior):
+configs/agent_config.yaml (agent behavior):
     system_template, instance_template — prompt templates
     step_limit — max agent steps
     tools — whitelist of enabled tools
@@ -25,9 +25,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- paths relative to this file ---
+# --- paths relative to project root ---
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_DEFAULT_CONFIG = _PROJECT_ROOT / "configs" / "agent_config.yaml"
 _AGENT_DIR = Path(__file__).resolve().parent
-_DEFAULT_CONFIG = _AGENT_DIR / "agent_config.yaml"
 _PROMPTS_DIR = _AGENT_DIR / "prompts"
 
 # SDK built-in tools that are controlled via Agent(include_default_tools=...)
@@ -44,7 +45,7 @@ def _resolve_api_key() -> str | None:
 
 @dataclass
 class AgentYamlConfig:
-    """Behavioral settings loaded from agent_config.yaml."""
+    """Behavioral settings loaded from configs/agent_config.yaml."""
 
     system_template: str = "system_prompt.j2"
     instance_template: str = "{{task}}"
@@ -109,7 +110,7 @@ class AgentConfig:
     )
     api_key: str | None = field(default_factory=_resolve_api_key)
 
-    # --- from agent_config.yaml (behavior) ---
+    # --- from configs/agent_config.yaml (behavior) ---
     yaml_config: AgentYamlConfig = field(default_factory=AgentYamlConfig.load)
 
     # --- from CLI args (runtime) ---

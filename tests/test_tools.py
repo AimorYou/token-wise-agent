@@ -430,10 +430,41 @@ def test_custom_tools_registered():
 
 
 # ---------------------------------------------------------------------------
+# AgentYamlConfig
+# ---------------------------------------------------------------------------
+
+from agent.config import AgentYamlConfig, _DEFAULT_CONFIG
+
+
+def test_default_config_path():
+    """Default config must live at configs/agent_config.yaml (not agent/)."""
+    assert _DEFAULT_CONFIG.parts[-2] == "configs"
+    assert _DEFAULT_CONFIG.name == "agent_config.yaml"
+
+
+def test_default_config_loads():
+    """configs/agent_config.yaml must exist and be loadable."""
+    assert _DEFAULT_CONFIG.exists(), f"Config not found: {_DEFAULT_CONFIG}"
+    cfg = AgentYamlConfig.load()
+    assert cfg.step_limit > 0
+    assert len(cfg.tools) > 0
+
+
+def test_user_config_loads():
+    """configs/agent_config_user.yaml must exist and be loadable."""
+    from pathlib import Path
+    user_cfg_path = _DEFAULT_CONFIG.parent / "agent_config_user.yaml"
+    assert user_cfg_path.exists(), f"User config not found: {user_cfg_path}"
+    cfg = AgentYamlConfig.load(user_cfg_path)
+    assert "bash_session" in cfg.tools
+    assert "think" in cfg.tools
+
+
+# ---------------------------------------------------------------------------
 # AgentTracker
 # ---------------------------------------------------------------------------
 
-from agent.agent_tracker import AgentTracker, make_token_callback
+from agent.agent_tracker import AgentTracker
 
 
 def test_agent_tracker_record():
@@ -449,8 +480,8 @@ def test_agent_tracker_record():
 def test_agent_tracker_cost():
     tracker = AgentTracker(model="anthropic/claude-sonnet-4-6")
     tracker.record(step=1, input_tokens=1_000_000, output_tokens=0)
-    # 1M input tokens at $3.00/M
-    assert abs(tracker.total_cost - 3.0) < 0.01
+    # 1M input tokens at $3.45/M
+    assert abs(tracker.total_cost - 3.45) < 0.01
 
 
 def test_agent_tracker_model_prefix_stripped():
@@ -471,17 +502,28 @@ def test_agent_tracker_tool_metrics():
     assert s["tool_errors"] == 3
 
 
-def test_make_token_callback():
+def test_agent_tracker_populate_from_llm_metrics():
+    """populate_from_llm_metrics should read token usage from agent.llm.metrics."""
+    from agent.agent_tracker import populate_from_llm_metrics
+
     tracker = AgentTracker(model="anthropic/claude-sonnet-4-6")
-    cb = make_token_callback(tracker)
 
     class FakeUsage:
         prompt_tokens = 100
         completion_tokens = 40
+        cache_write_tokens = 0
+        cache_read_tokens = 0
 
-    class FakeChunk:
-        usage = FakeUsage()
+    class FakeMetrics:
+        token_usages = [FakeUsage()]
 
-    cb(FakeChunk())
+    class FakeLLM:
+        metrics = FakeMetrics()
+
+    class FakeAgent:
+        llm = FakeLLM()
+
+    populate_from_llm_metrics(tracker, FakeAgent())
     assert tracker.total_input == 100
     assert tracker.total_output == 40
+    assert tracker.llm_calls == 1

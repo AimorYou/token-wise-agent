@@ -11,7 +11,7 @@ Usage:
 
 Config sources:
     .env                   — secrets & connection (AGENT_API_KEY, AGENT_BASE_URL, AGENT_MODEL)
-    agent/agent_config.yaml — behavior (system_template, instance_template, step_limit, tools)
+    configs/agent_config.yaml — behavior (system_template, instance_template, step_limit, tools)
     CLI args               — runtime overrides (--model, --max-steps, --working-dir, --quiet)
 """
 
@@ -51,7 +51,7 @@ def main() -> None:
     parser.add_argument("--model", help="Override model from .env")
     parser.add_argument("--base-url", help="Override base URL from .env")
     parser.add_argument("--api-key", help="Override API key from .env")
-    parser.add_argument("--max-steps", type=int, help="Override step_limit from agent_config.yaml")
+    parser.add_argument("--max-steps", type=int, help="Override step_limit from configs/agent_config.yaml")
     parser.add_argument("--working-dir", help="Working directory (default: current dir)")
     parser.add_argument("--quiet", action="store_true", help="Suppress verbose output")
     parser.add_argument("--agent-config", metavar="YAML", help="Path to agent config YAML")

@@ -23,20 +23,21 @@ from rich.table import Table
 
 
 # Pricing per million tokens (USD).
+# Keys use the model name WITHOUT provider prefix (cost() strips "provider/" before lookup).
 MODEL_PRICING: dict[str, dict[str, float]] = {
-    "anthropic/claude-sonnet-4-6": {
+    "claude-sonnet-4-6": {
         "input": 3.45,
         "output": 17.25
     },
-    "anthropic/claude-opus-4-6": {
+    "claude-opus-4-6": {
         "input": 5.75,
         "output": 28.75
     },
-    "anthropic/claude-haiku-4.5": {
+    "claude-haiku-4.5": {
         "input": 1.15,
         "output": 5.75
     },
-    "qwen/qwen3-coder-next": {
+    "qwen3-coder-next": {
         "input": 0.489,
         "output": 1.174
     },

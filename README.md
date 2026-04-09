@@ -26,8 +26,6 @@ run.py                          ← entry point
 ```
 token-wise-agent/
 ├── agent/
-│   ├── agent_config.yaml         # Конфиг для SWE-bench: промпты, tools, step_limit
-│   ├── agent_config_user.yaml    # Конфиг для пользовательского режима
 │   ├── config.py                 # Загрузка конфига (.env + YAML + CLI)
 │   ├── agent_tracker.py          # Трекинг метрик агента (токены, стоимость, вызовы)
 │   ├── prompts/
@@ -40,6 +38,9 @@ token-wise-agent/
 │       ├── smart_reader.py       # Чтение файла с диапазоном строк и контекстом
 │       ├── smart_editor.py       # Редактирование файлов (patch/replace/insert/undo)
 │       └── submit.py             # Сигнал завершения задачи
+├── configs/
+│   ├── agent_config.yaml         # Конфиг для SWE-bench: промпты, tools, step_limit
+│   └── agent_config_user.yaml    # Конфиг для пользовательского режима
 ├── benchmarks/
 │   ├── run_benchmark.py          # SWE-Bench-style раннер
 │   └── tasks/                    # 10 задач с багами и тестами
@@ -80,7 +81,7 @@ uv run run.py --quiet "задача"
 uv run run.py --model anthropic/claude-opus-4-6 "задача"
 
 # Пользовательский конфиг (с think/finish/bash_session)
-uv run run.py --agent-config agent/agent_config_user.yaml "задача"  # с think/bash_session
+uv run run.py --agent-config configs/agent_config_user.yaml "задача"  # с think/bash_session
 
 # Указать рабочую директорию
 uv run run.py --working-dir /path/to/project "задача"
@@ -103,7 +104,7 @@ uv run run.py --list-tools
 | `AGENT_BASE_URL` | Кастомный API endpoint (для OpenAI-совместимых сервисов) |
 | `AGENT_MODEL` | litellm model ID (по умолчанию `anthropic/claude-sonnet-4-6`) |
 
-### `agent/agent_config.yaml` — поведение агента
+### `configs/agent_config.yaml` — поведение агента
 
 ```yaml
 agent:
@@ -125,8 +126,8 @@ agent:
 ```
 
 Два готовых конфига:
-- `agent_config.yaml` — SWE-bench режим (без think)
-- `agent_config_user.yaml` — пользовательский (с think/bash_session)
+- `configs/agent_config.yaml` — SWE-bench режим (без think)
+- `configs/agent_config_user.yaml` — пользовательский (с think/bash_session)
 
 ### CLI аргументы — рантайм-оверрайды
 
@@ -185,16 +186,15 @@ uv run python benchmarks/run_benchmark.py --save results.json
 ┃ Metric             ┃       Value ┃
 ┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
 │ Model              │ anthropic/… │
+│ Latency            │       90.0s │
 │ LLM calls          │           7 │
-│ Total tool calls   │           7 │
+│ Total tool calls   │          14 │
 │ Tool errors        │           0 │
 │                    │             │
 │ Input tokens       │     120,000 │
 │ Output tokens      │       3,200 │
-│ Cache write tokens │           0 │
-│ Cache read tokens  │     108,000 │
 │                    │             │
-│ Total cost         │     $0.0143 │
+│ Total cost         │     $0.0414 │
 └────────────────────┴─────────────┘
 ```
 
