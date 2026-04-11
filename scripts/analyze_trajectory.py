@@ -235,8 +235,13 @@ def resolve_paths(arg: str | None) -> list[Path]:
 
     p = Path(arg)
     if not p.exists():
-        console.print(f"[red]Not found: {p}[/red]")
-        sys.exit(1)
+        # Try resolving as a run_id inside the config dir
+        candidate = Path(user_config_dir(_APP_NAME)) / arg
+        if candidate.exists():
+            p = candidate
+        else:
+            console.print(f"[red]Not found: {p}[/red]")
+            sys.exit(1)
     if p.is_dir():
         files = sorted(p.glob("*.traj.json"))
         if not files:
