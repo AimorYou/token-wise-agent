@@ -44,6 +44,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from agent.config import AgentYamlConfig
 from agent.utils import read_submission
+from agent.trajectory import get_trajectory_path
 TASKS_DIR = Path(__file__).resolve().parent / "tasks"
 RUN_PY = PROJECT_ROOT / "run.py"
 
@@ -72,6 +73,7 @@ def _build_agent_cmd(
     verbose: bool,
     run_id: str | None = None,
     task_id: str | None = None,
+    traj_output: str | None = None,
 ) -> list[str]:
     """Build the run.py argument list (shared between local and docker modes)."""
     cmd = ["--working-dir", working_dir, "--max-steps", str(max_steps), "--no-save-only-last-traj"]
@@ -85,6 +87,8 @@ def _build_agent_cmd(
         cmd += ["--run-id", run_id]
     if task_id:
         cmd += ["--task-id", task_id]
+    if traj_output:
+        cmd += ["--traj-output", traj_output]
     cmd.append(issue_text)
     return cmd
 
@@ -143,6 +147,16 @@ def run_agent(
         }
 
 
+def _collect_trajectory(workspace: Path, run_id: str | None, task_id: str | None) -> None:
+    """Move trajectory written inside Docker (/testbed) to the host trajectory store."""
+    src = workspace / f"{task_id or 'trajectory'}.traj.json"
+    if not src.exists():
+        return
+    dst = get_trajectory_path(run_id or "run", task_id or "task")
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(src), dst)
+
+
 def docker_image_exists(image: str) -> bool:
     result = subprocess.run(
         ["docker", "image", "inspect", image],
@@ -189,7 +203,8 @@ def run_agent_docker(
         extra_mounts = ["-v", f"{host_cfg}:{config_in_container}:ro"]
 
     env_file = PROJECT_ROOT / ".env"
-    agent_args = _build_agent_cmd("/testbed", issue_text, model, max_steps, config_in_container, verbose, run_id, task_id)
+    traj_output = f"/testbed/{task_id}.traj.json" if task_id else "/testbed/trajectory.traj.json"
+    agent_args = _build_agent_cmd("/testbed", issue_text, model, max_steps, config_in_container, verbose, run_id, task_id, traj_output)
 
     cmd = ["docker", "run", "--rm"]
     cmd += ["-v", f"{workspace}:/testbed"]
@@ -208,6 +223,7 @@ def run_agent_docker(
         else:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         latency, submitted, explanation = _collect_result(workspace, start)
+        _collect_trajectory(workspace, run_id, task_id)
         return {
             "latency": latency,
             "submitted": submitted,
