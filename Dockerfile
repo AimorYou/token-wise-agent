@@ -11,6 +11,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Copy agent code
 COPY run.py ./
 COPY agent/ ./agent/
+COPY configs/ ./configs/
 
 # Task code is mounted at runtime: -v /host/task:/testbed
 # API keys are passed via --env-file .env or -e flags
