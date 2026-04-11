@@ -37,7 +37,7 @@ MODEL_PRICING: dict[str, dict[str, float]] = {
         "input": 1.15,
         "output": 5.75
     },
-    "qwen3-coder-next": {
+    "qwen/qwen3-coder-next": {
         "input": 0.489,
         "output": 1.174
     },
