@@ -27,6 +27,8 @@ from rich.console import Console
 # OpenHands SDK
 from openhands.sdk import Agent, LLM, LocalConversation
 from openhands.sdk.conversation import get_agent_final_response
+from openhands.sdk.conversation.exceptions import ConversationRunError
+from openhands.sdk.conversation.state import ConversationExecutionStatus
 from openhands.sdk.tool import Tool
 from openhands.sdk.conversation.visualizer import DefaultConversationVisualizer
 
@@ -37,6 +39,35 @@ from agent.config import AgentConfig, AgentYamlConfig
 from agent.agent_tracker import AgentTracker, populate_from_llm_metrics, populate_from_events
 from agent.utils import read_submission
 from agent.trajectory import get_trajectory_path, get_last_trajectory_path, write_trajectory
+
+
+_MAX_RECOVERY_ATTEMPTS = 3
+
+
+def run_with_recovery(conversation: LocalConversation) -> None:
+    """Run conversation, recovering from transient ConversationRunErrors.
+
+    On crash (e.g. truncated JSON from the model), closes pending tool calls,
+    resets state to IDLE, and tells the agent what went wrong so it can retry.
+    """
+    for attempt in range(_MAX_RECOVERY_ATTEMPTS):
+        try:
+            conversation.run()
+            return
+        except ConversationRunError as exc:
+            if attempt + 1 >= _MAX_RECOVERY_ATTEMPTS:
+                raise
+            cause = str(exc.__cause__ or exc)
+            # Close any unmatched tool calls so the message history stays valid
+            conversation.reject_pending_actions(f"Tool call failed: {cause}")
+            # Reset ERROR → IDLE so send_message + run() work again
+            with conversation._state:
+                conversation._state.execution_status = ConversationExecutionStatus.IDLE
+            conversation.send_message(
+                f"[SYSTEM ERROR] The previous tool call crashed the runtime: {cause}. "
+                "This is a transient error. Please retry your last action carefully, "
+                "ensuring all tool arguments are valid."
+            )
 
 
 def build_tools(yaml_config: AgentYamlConfig) -> list[Tool]:
@@ -60,6 +91,10 @@ def main() -> None:
     parser.add_argument(
         "--save-only-last-traj", action=argparse.BooleanOptionalAction, default=True,
         help="If true (default), overwrite last_twa_run.traj.json; if false, save to {run_id}/{task_id}.traj.json",
+    )
+    parser.add_argument(
+        "--traj-output", metavar="PATH",
+        help="Explicit path for the trajectory file (overrides --save-only-last-traj logic)",
     )
     args = parser.parse_args()
 
@@ -139,7 +174,7 @@ def main() -> None:
     tracker.start()
     try:
         conversation.send_message(rendered_task)
-        conversation.run()
+        run_with_recovery(conversation)
         final = get_agent_final_response(conversation.state.events)
     except Exception as exc:
         exit_status = type(exc).__name__
@@ -162,7 +197,12 @@ def main() -> None:
     metrics_path = working_dir / "METRICS.json"
     metrics_path.write_text(json.dumps(tracker.summary(), indent=2, ensure_ascii=False))
 
-    traj_path = get_last_trajectory_path() if args.save_only_last_traj else get_trajectory_path(run_id, task_id)
+    if args.traj_output:
+        traj_path = Path(args.traj_output)
+    elif args.save_only_last_traj:
+        traj_path = get_last_trajectory_path()
+    else:
+        traj_path = get_trajectory_path(run_id, task_id)
     try:
         write_trajectory(
             path=traj_path,
