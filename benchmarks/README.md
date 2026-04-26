@@ -10,13 +10,13 @@
 
 | # | Задача | Тема | Сложность |
 |---|--------|------|-----------|
-| 1 | `task_001_timeseries` | Timeseries rolling window | Medium |
-| 2 | `task_002_cache_invalidation` | LRU cache invalidation | Medium |
-| 3 | `task_003_json_config` | Config loader (feature) | Medium |
-| 4 | `task_004_cli_batch` | CLI batch mode (feature + bug) | Medium |
-| 5 | `task_005_log_sorting` | Log aggregation / timezone | Medium-Hard |
-| 6 | `task_006_async_pipeline` | Async pipeline ordering | Hard |
-| 7 | `task_007_plugin_system` | Dynamic plugin discovery | Hard |
+| 1 | `task_001_timeseries` | Timeseries rolling window | Easy |
+| 2 | `task_002_cache_invalidation` | LRU cache invalidation | Easy |
+| 3 | `task_003_json_config` | Config loader (feature) | Easy |
+| 4 | `task_004_cli_batch` | CLI batch mode (feature + bug) | Easy-Medium |
+| 5 | `task_005_log_sorting` | Log aggregation / timezone | Medium |
+| 6 | `task_006_async_pipeline` | Async pipeline ordering | Medium-Hard |
+| 7 | `task_007_plugin_system` | Dynamic plugin discovery | Medium-Hard |
 | 8 | `task_008_eventbus_race` | Thread safety / race condition | Hard |
 | 9 | `task_009_orm_query_planner` | ORM query builder / SQL joins | Hard |
 | 10 | `task_010_config_merger` | Deep merge / diff / patch | Hard |
