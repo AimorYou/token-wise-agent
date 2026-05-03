@@ -1,29 +1,15 @@
 agent:
-  # Jinja2 system prompt template (relative to agent/prompts/)
-  system_template: "system_prompt.j2"
-
-  # Template for formatting the task/issue for the agent.
-  # Available variables: {{task}}
+  system_template: "system_prompt_user.j2"
   instance_template: "{{task}}"
-
-  # LLM parameters (temperature, top_p, max_output_tokens, etc.)
   llm_params:
-    temperature: 0.0
-
-  # Max steps before the agent is stopped
+    temperature: 0.5
   step_limit: 50
-
-  # Max cost in USD before the agent is stopped (0 = unlimited)
   cost_limit: 0
-
-  # Whitelist of tools available to the agent.
-  # User mode: full toolset including persistent shell session and think.
+  timeout: 0
   tools:
-    - bash_session
     - bash
     - glob
     - grep
     - smart_reader
     - smart_editor
     - think
-    - submit

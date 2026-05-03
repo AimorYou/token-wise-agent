@@ -16,32 +16,25 @@ Usage:
 
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Optional
 
+import yaml
 from rich.console import Console
 from rich.table import Table
 
 
-# Pricing per million tokens (USD).
-# Keys use the model name WITHOUT provider prefix (cost() strips "provider/" before lookup).
-MODEL_PRICING: dict[str, dict[str, float]] = {
-    "claude-sonnet-4-6": {
-        "input": 3.45,
-        "output": 17.25
-    },
-    "claude-opus-4-6": {
-        "input": 5.75,
-        "output": 28.75
-    },
-    "claude-haiku-4.5": {
-        "input": 1.15,
-        "output": 5.75
-    },
-    "qwen/qwen3-coder-next": {
-        "input": 0.489,
-        "output": 1.174
-    },
-}
+def _load_pricing() -> dict[str, dict[str, float]]:
+    path = Path(__file__).resolve().parent.parent / "configs" / "pricing.yaml"
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        return yaml.safe_load(f) or {}
+
+
+# Pricing per million tokens (USD). Loaded from configs/pricing.yaml.
+# Keys: model name WITHOUT provider prefix.
+MODEL_PRICING: dict[str, dict[str, float]] = _load_pricing()
 
 
 @dataclass

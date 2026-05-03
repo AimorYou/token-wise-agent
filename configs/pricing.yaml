@@ -1,0 +1,17 @@
+# Per-million-token pricing (USD).
+
+claude-sonnet-4-6:
+  input: 3.45
+  output: 17.25
+
+claude-opus-4-6:
+  input: 5.75
+  output: 28.75
+
+claude-haiku-4.5:
+  input: 1.15
+  output: 5.75
+
+qwen/qwen3-coder-next:
+  input: 0.489
+  output: 1.174

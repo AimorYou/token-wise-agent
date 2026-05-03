@@ -28,6 +28,7 @@ load_dotenv()
 # --- paths relative to project root ---
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_CONFIG = _PROJECT_ROOT / "configs" / "agent_config.yaml"
+_DEFAULT_USER_CONFIG = _PROJECT_ROOT / "configs" / "agent_config_user.yaml"
 _AGENT_DIR = Path(__file__).resolve().parent
 _PROMPTS_DIR = _AGENT_DIR / "prompts"
 

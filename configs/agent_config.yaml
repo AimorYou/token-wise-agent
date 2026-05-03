@@ -1,9 +1,5 @@
 agent:
-  # Jinja2 system prompt template (relative to agent/prompts/)
   system_template: "system_prompt.j2"
-
-  # Template for formatting the task/issue for the agent.
-  # Available variables: {{task}}
   instance_template: |
     <issue>
     {{task}}
@@ -11,23 +7,11 @@ agent:
 
     Fix the bug described above. All paths are relative to `.` (the current working directory).
     Edit source files in `src/` with `smart_editor`, verify once with `python -m pytest tests/ -v`, then call `submit`.
-
-  # LLM parameters (temperature, top_p, max_output_tokens, etc.)
-  # All values are passed directly to the LLM constructor.
   llm_params:
     temperature: 0.0
-
-  # Max steps before the agent is stopped
   step_limit: 30
-
-  # Max cost in USD before the agent is stopped (0 = unlimited)
   cost_limit: 0
-
-  # Timeout in seconds for the agent per task (0 = unlimited)
   timeout: 600
-
-  # Whitelist of tools available to the agent.
-  # SWE-bench mode: agent works through bash, grep, smart_reader, submit.
   tools:
     - bash
     - glob
