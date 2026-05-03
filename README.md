@@ -14,13 +14,13 @@ run.py                          ← entry point
   └── LocalConversation (OpenHands SDK)
         ├── Agent + system_prompt.j2   ← кастомный системный промпт
         │     └── LLM (litellm → Anthropic / OpenAI / любой провайдер)
-        ├── BashSessionTool ← обёртка над TerminalTool (персистентная bash-сессия)
         ├── BashTool        ← кастомный: stateless subprocess
         ├── GlobTool        ← кастомный: поиск файлов по glob-паттерну
         ├── GrepTool        ← кастомный: regex-поиск с контекстом
         ├── SmartReaderTool ← кастомный: чтение файла с диапазоном строк и контекстом
         ├── SmartEditorTool ← кастомный: редактирование файлов (patch/replace/insert/undo)
-        └── SubmitTool      ← кастомный: сигнал завершения задачи
+        ├── SubmitTool      ← кастомный: сигнал завершения задачи (SWE-bench режим)
+        └── ThinkTool       ← SDK built-in: внутренние размышления
 ```
 
 ```
@@ -29,23 +29,25 @@ token-wise-agent/
 │   ├── config.py                 # Загрузка конфига (.env + YAML + CLI)
 │   ├── agent_tracker.py          # Трекинг метрик агента (токены, стоимость, вызовы)
 │   ├── prompts/
-│   │   └── system_prompt.j2      # Jinja2 системный промпт
+│   │   ├── system_prompt.j2      # Промпт для SWE-bench режима
+│   │   └── system_prompt_user.j2 # Промпт для интерактивного режима
 │   └── tools/
-│       ├── bash.py               # Stateless subprocess bash
-│       ├── bash_session.py       # Обёртка над TerminalTool (персистентная сессия)
-│       ├── glob.py               # Поиск файлов по glob-паттерну
-│       ├── grep.py               # Regex-поиск по файлам с контекстом
-│       ├── smart_reader.py       # Чтение файла с диапазоном строк и контекстом
-│       ├── smart_editor.py       # Редактирование файлов (patch/replace/insert/undo)
-│       └── submit.py             # Сигнал завершения задачи
+│       ├── bash.py
+│       ├── bash_session.py
+│       ├── glob.py
+│       ├── grep.py
+│       ├── smart_reader.py
+│       ├── smart_editor.py
+│       └── submit.py
 ├── configs/
-│   ├── agent_config.yaml         # Конфиг для SWE-bench: промпты, tools, step_limit
-│   └── agent_config_user.yaml    # Конфиг для пользовательского режима
+│   ├── agent_config.yaml         # SWE-bench режим: промпты, tools, step_limit
+│   ├── agent_config_user.yaml    # Интерактивный режим (по умолчанию без задачи)
+│   └── pricing.yaml              # Стоимость токенов по моделям
 ├── benchmarks/
 │   ├── run_benchmark.py          # SWE-Bench-style раннер
 │   └── tasks/                    # 10 задач с багами и тестами
 ├── tests/
-│   └── test_tools.py             # Юнит-тесты инструментов
+│   └── test_tools.py
 ├── run.py                        # Entry point
 ├── .env                          # Секреты (не в git)
 └── .env.example
@@ -70,18 +72,43 @@ cp .env.example .env
 
 ## Использование
 
+### Интерактивный режим
+
 ```bash
-# Запустить агента (SWE-bench конфиг по умолчанию)
+# Запустить интерактивный чат (по умолчанию если задача не передана)
+uv run run.py
+
+# Явный флаг
+uv run run.py -i
+
+# Другая рабочая директория
+uv run run.py -i --working-dir /path/to/project
+```
+
+В интерактивном режиме доступны команды:
+
+| Команда | Действие |
+|---------|----------|
+| `/confirm` | Переключиться в режим подтверждений (агент спрашивает перед каждым tool call) |
+| `/auto` | Вернуться в автоматический режим |
+| `exit` / Ctrl+C | Выйти |
+
+В режиме подтверждений: **Enter** — одобрить действие, **любой текст** — отклонить и передать агенту как причину.
+
+### Одноразовый режим (SWE-bench)
+
+```bash
+# Запустить агента на задаче
 uv run run.py "Fix the failing tests in tests/"
 
-# Тихий режим
+# Тихий режим (без вывода агента)
 uv run run.py --quiet "задача"
 
 # Другая модель
 uv run run.py --model anthropic/claude-opus-4-6 "задача"
 
-# Пользовательский конфиг (с think/finish/bash_session)
-uv run run.py --agent-config configs/agent_config_user.yaml "задача"  # с think/bash_session
+# Пользовательский конфиг
+uv run run.py --agent-config configs/agent_config_user.yaml "задача"
 
 # Указать рабочую директорию
 uv run run.py --working-dir /path/to/project "задача"
@@ -104,11 +131,11 @@ uv run run.py --list-tools
 | `AGENT_BASE_URL` | Кастомный API endpoint (для OpenAI-совместимых сервисов) |
 | `AGENT_MODEL` | litellm model ID (по умолчанию `anthropic/claude-sonnet-4-6`) |
 
-### `configs/agent_config.yaml` — поведение агента
+### `configs/agent_config.yaml` / `configs/agent_config_user.yaml` — поведение агента
 
 ```yaml
 agent:
-  system_template: "system_prompt.j2"
+  system_template: "system_prompt.j2"   # промпт из agent/prompts/
   instance_template: |
     ...
   llm_params:
@@ -116,7 +143,7 @@ agent:
   step_limit: 30
   cost_limit: 0
   timeout: 600
-  tools:                    # Whitelist доступных инструментов
+  tools:
     - bash
     - glob
     - grep
@@ -126,13 +153,25 @@ agent:
 ```
 
 Два готовых конфига:
-- `configs/agent_config.yaml` — SWE-bench режим (без think)
-- `configs/agent_config_user.yaml` — пользовательский (с think/bash_session)
+- `configs/agent_config.yaml` — SWE-bench режим (`step_limit: 30`, `temperature: 0.0`)
+- `configs/agent_config_user.yaml` — интерактивный режим (`step_limit: 50`, `temperature: 0.5`, без `submit`)
 
-### CLI аргументы — рантайм-оверрайды
+### `configs/pricing.yaml` — стоимость токенов
+
+```yaml
+# Цена за миллион токенов (USD)
+claude-sonnet-4-6:
+  input: 3.45
+  output: 17.25
+```
+
+Используется для подсчёта стоимости и передаётся в LiteLLM, чтобы избежать предупреждений о неизвестной модели. Добавьте новую модель сюда — стоимость подхватится автоматически.
+
+### CLI аргументы
 
 | Аргумент | Описание |
 |---|---|
+| `-i` / `--interactive` | Запустить интерактивный режим |
 | `--model` | Переопределить модель из `.env` |
 | `--max-steps` | Переопределить `step_limit` из YAML |
 | `--working-dir` | Рабочая директория (по умолчанию `.`) |
@@ -145,14 +184,14 @@ agent:
 
 | Имя | Источник | Описание |
 |-----|----------|----------|
-| `bash_session` | Обёртка над TerminalTool | Персистентная bash-сессия (состояние между вызовами) |
 | `bash` | Кастомный | Stateless subprocess — каждый вызов независим |
+| `bash_session` | Обёртка над TerminalTool | Персистентная bash-сессия (состояние между вызовами) |
 | `glob` | Кастомный | Поиск файлов по glob-паттерну (сортировка по mtime) |
 | `grep` | Кастомный | Regex-поиск по файлам с N строками контекста |
 | `smart_reader` | Кастомный | Чтение файла: диапазон строк, контекст вокруг строки, авто-truncation |
 | `smart_editor` | Кастомный | Редактирование файлов: patch, replace, insert, create, delete, undo |
-| `submit` | Кастомный | Сигнал завершения — останавливает агента |
-| `think` | SDK built-in | Внутренний "размышление" |
+| `submit` | Кастомный | Сигнал завершения — останавливает агента (SWE-bench режим) |
+| `think` | SDK built-in | Внутренние размышления перед действием |
 
 ---
 
@@ -161,7 +200,7 @@ agent:
 10 SWE-Bench-style задач для тестирования агента. Подробности — в [benchmarks/README.md](benchmarks/README.md).
 
 ```bash
-# Все задачи (логи агента по умолчанию)
+# Все задачи
 uv run python benchmarks/run_benchmark.py
 
 # Одна задача
@@ -174,11 +213,17 @@ uv run python benchmarks/run_benchmark.py --quiet task_001
 uv run python benchmarks/run_benchmark.py --save results.json
 ```
 
+Анализ результатов:
+
+```bash
+uv run python scripts/analyze_trajectory.py run_2026-04-11_15-40-56
+```
+
 ---
 
 ## Трекинг метрик
 
-После каждого запуска выводится таблица и создаётся `METRICS.json` в рабочей директории:
+После каждого запуска (одноразовый режим) выводится таблица и сохраняется `METRICS.json` в рабочей директории:
 
 ```
            Agent Summary
@@ -198,13 +243,15 @@ uv run python benchmarks/run_benchmark.py --save results.json
 └────────────────────┴─────────────┘
 ```
 
+В интерактивном режиме стоимость показывается после каждого хода.
+
 ---
 
 ## Добавление нового инструмента
 
 1. Создай файл в `agent/tools/` (шаблон — `smart_reader.py`)
 2. Добавь импорт в `agent/tools/__init__.py`
-3. Добавь имя тула в `tools:` в `agent_config.yaml`
+3. Добавь имя тула в `tools:` в нужном `agent_config.yaml`
 
 ---
 
