@@ -193,7 +193,7 @@ def run_agent_docker(
     Task workspace монтируется в /testbed, агентский код живёт в /app образа.
     API-ключи пробрасываются через --env-file .env.
     """
-    # Inside the container agent_config lives at /app/configs/agent_config.yaml by default.
+    # Inside the container agent_config lives at /app/agent/configs/agent_config.yaml by default.
     # If caller overrides it, we mount the file and pass the in-container path.
     extra_mounts: list[str] = []
     config_in_container: str | None = None

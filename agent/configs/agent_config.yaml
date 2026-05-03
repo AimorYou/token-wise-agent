@@ -1,0 +1,21 @@
+agent:
+  system_template: "system_prompt.j2"
+  instance_template: |
+    <issue>
+    {{task}}
+    </issue>
+
+    Fix the bug described above. All paths are relative to `.` (the current working directory).
+    Edit source files in `src/` with `smart_editor`, verify once with `python -m pytest tests/ -v`, then call `submit`.
+  llm_params:
+    temperature: 0.0
+  step_limit: 30
+  cost_limit: 0
+  timeout: 600
+  tools:
+    - bash
+    - glob
+    - grep
+    - smart_reader
+    - smart_editor
+    - submit

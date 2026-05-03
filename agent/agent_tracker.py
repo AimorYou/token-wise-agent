@@ -25,7 +25,7 @@ from rich.table import Table
 
 
 def _load_pricing() -> dict[str, dict[str, float]]:
-    path = Path(__file__).resolve().parent.parent / "configs" / "pricing.yaml"
+    path = Path(__file__).resolve().parent / "configs" / "pricing.yaml"
     if not path.exists():
         return {}
     with open(path) as f:

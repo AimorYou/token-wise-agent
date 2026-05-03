@@ -1,7 +1,11 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
 [project]
 name = "token-wise-agent"
-version = "0.1.0"
-description = "Custom code agent with pluggable tools and token tracking, built on OpenHands SDK"
+dynamic = ["version"]
+description = "AI coding assistant with pluggable tools and token tracking, built on OpenHands SDK"
 requires-python = ">=3.12"
 dependencies = [
     "openhands-ai>=1.4.0",
@@ -10,13 +14,20 @@ dependencies = [
 ]
 
 [project.scripts]
-agent = "run:main"
+twa = "agent.cli:main"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agent"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 
 [dependency-groups]
 dev = [
+    "hatch-vcs>=0.4.0",
     "numpy>=1.26.0",
     "pandas>=2.2.0",
     "pytest>=9.0.2",

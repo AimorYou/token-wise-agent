@@ -1,0 +1,15 @@
+agent:
+  system_template: "system_prompt_user.j2"
+  instance_template: "{{task}}"
+  llm_params:
+    temperature: 0.5
+  step_limit: 50
+  cost_limit: 0
+  timeout: 0
+  tools:
+    - bash
+    - glob
+    - grep
+    - smart_reader
+    - smart_editor
+    - think

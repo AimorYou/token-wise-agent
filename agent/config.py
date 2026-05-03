@@ -25,12 +25,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- paths relative to project root ---
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_DEFAULT_CONFIG = _PROJECT_ROOT / "configs" / "agent_config.yaml"
-_DEFAULT_USER_CONFIG = _PROJECT_ROOT / "configs" / "agent_config_user.yaml"
+# --- paths relative to this file (works both locally and when pip-installed) ---
 _AGENT_DIR = Path(__file__).resolve().parent
+_CONFIGS_DIR = _AGENT_DIR / "configs"
 _PROMPTS_DIR = _AGENT_DIR / "prompts"
+
+_DEFAULT_CONFIG = _CONFIGS_DIR / "agent_config.yaml"
+_DEFAULT_USER_CONFIG = _CONFIGS_DIR / "agent_config_user.yaml"
 
 # SDK built-in tools that are controlled via Agent(include_default_tools=...)
 _SDK_BUILTIN_TOOLS = {"think": "ThinkTool"}
