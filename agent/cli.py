@@ -211,11 +211,72 @@ def build_tools(yaml_config: AgentYamlConfig) -> list[Tool]:
     return [Tool(name=name) for name in yaml_config.custom_tool_names]
 
 
+_ENV_TEMPLATE = """\
+# Token-Wise Agent — connection settings
+# Docs: https://github.com/AimorYou/token-wise-agent
+
+AGENT_API_KEY=           # Required: your API key
+
+# AGENT_MODEL=anthropic/claude-sonnet-4-6   # optional: model to use
+# AGENT_BASE_URL=                            # optional: custom API endpoint
+"""
+
+_CONFIG_TEMPLATE = """\
+# Token-Wise Agent — interactive mode settings
+# Remove the leading '#' to override a value.
+
+agent:
+  # system_template: "system_prompt_user.j2"
+  llm_params:
+    temperature: 0.5
+  step_limit: 50
+  tools:
+    - bash
+    - glob
+    - grep
+    - smart_reader
+    - smart_editor
+    - think
+"""
+
+
+def _ensure_user_config_dir() -> None:
+    """Create ~/.config/token-wise-agent/ with template files on first run."""
+    USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    env_path = USER_CONFIG_DIR / ".env"
+    config_path = USER_CONFIG_DIR / "agent_config_user.yaml"
+    if not env_path.exists():
+        env_path.write_text(_ENV_TEMPLATE)
+    if not config_path.exists():
+        config_path.write_text(_CONFIG_TEMPLATE)
+
+
+def _edit_config(target: str, console: Console) -> None:
+    """Open a config file in $EDITOR."""
+    import subprocess
+    files = {
+        "env": USER_CONFIG_DIR / ".env",
+        "config": USER_CONFIG_DIR / "agent_config_user.yaml",
+    }
+    path = files[target]
+    _ensure_user_config_dir()
+    editor = os.environ.get("EDITOR") or os.environ.get("VISUAL") or "nano"
+    console.print(f"[dim]Opening {path} in {editor}…[/dim]")
+    subprocess.run([editor, str(path)])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="twa",
         description="Token-Wise Agent — an AI coding assistant",
     )
+    subparsers = parser.add_subparsers(dest="command")
+    edit_parser = subparsers.add_parser("edit", help="Edit configuration files")
+    edit_parser.add_argument(
+        "file", nargs="?", choices=["env", "config"], default="env",
+        help="Which file to edit: env (default) or config",
+    )
+
     parser.add_argument("task", nargs="?", help="Task for the agent to solve")
     parser.add_argument(
         "--interactive", "-i", action="store_true",
@@ -240,6 +301,13 @@ def main() -> None:
         help="Explicit path for the trajectory file (overrides --save-only-last-traj logic)",
     )
     args = parser.parse_args()
+
+    _ensure_user_config_dir()
+
+    if args.command == "edit":
+        console = Console()
+        _edit_config(args.file, console)
+        return
 
     config = AgentConfig()
     if args.agent_config:
