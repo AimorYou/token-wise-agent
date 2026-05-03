@@ -23,7 +23,11 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-load_dotenv()
+# --- user config directory (where pip-installed users put their .env and YAML) ---
+USER_CONFIG_DIR = Path.home() / ".config" / "token-wise-agent"
+
+# Load .env: CWD first (local dev), then ~/.config/token-wise-agent/ (installed)
+load_dotenv() or load_dotenv(USER_CONFIG_DIR / ".env")
 
 # --- paths relative to this file (works both locally and when pip-installed) ---
 _AGENT_DIR = Path(__file__).resolve().parent
@@ -31,7 +35,9 @@ _CONFIGS_DIR = _AGENT_DIR / "configs"
 _PROMPTS_DIR = _AGENT_DIR / "prompts"
 
 _DEFAULT_CONFIG = _CONFIGS_DIR / "agent_config.yaml"
-_DEFAULT_USER_CONFIG = _CONFIGS_DIR / "agent_config_user.yaml"
+# User YAML override takes priority over bundled default
+_user_yaml_override = USER_CONFIG_DIR / "agent_config_user.yaml"
+_DEFAULT_USER_CONFIG = _user_yaml_override if _user_yaml_override.exists() else _CONFIGS_DIR / "agent_config_user.yaml"
 
 # SDK built-in tools that are controlled via Agent(include_default_tools=...)
 _SDK_BUILTIN_TOOLS = {"think": "ThinkTool"}

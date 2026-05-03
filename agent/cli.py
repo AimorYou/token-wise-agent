@@ -18,9 +18,12 @@ Config sources:
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
+
+os.environ.setdefault("OPENHANDS_SUPPRESS_BANNER", "1")
 
 from pydantic import SecretStr
 from rich.console import Console
@@ -39,7 +42,7 @@ from openhands.sdk.security.confirmation_policy import AlwaysConfirm, NeverConfi
 # Register all tools (custom + bash_session wrapping TerminalTool)
 import agent.tools  # noqa: F401
 
-from agent.config import AgentConfig, AgentYamlConfig, _DEFAULT_USER_CONFIG
+from agent.config import AgentConfig, AgentYamlConfig, _DEFAULT_USER_CONFIG, USER_CONFIG_DIR
 from agent.agent_tracker import AgentTracker, MODEL_PRICING, populate_from_llm_metrics, populate_from_events
 from agent.utils import read_submission
 from agent.trajectory import get_trajectory_path, get_last_trajectory_path, write_trajectory
@@ -67,9 +70,13 @@ def _build_llm_kwargs(config: AgentConfig) -> dict:
 def interactive_mode(config: AgentConfig, console: Console) -> None:
     """Persistent interactive chat session with the agent."""
     if not config.api_key:
+        env_path = USER_CONFIG_DIR / ".env"
         console.print(
-            "[red]Error: no API key found.\n"
-            "Set AGENT_API_KEY in .env or pass --api-key.[/red]"
+            f"[red]Error: no API key found.[/red]\n\n"
+            f"Create [bold]{env_path}[/bold] with:\n"
+            f"  [dim]AGENT_API_KEY=sk-...[/dim]\n"
+            f"  [dim]AGENT_MODEL=anthropic/claude-sonnet-4-6  # optional[/dim]\n\n"
+            f"Or pass it directly: [bold]twa --api-key sk-...[/bold]"
         )
         sys.exit(1)
 
@@ -268,9 +275,12 @@ def main() -> None:
         return
 
     if not config.api_key:
+        env_path = USER_CONFIG_DIR / ".env"
         console.print(
-            "[red]Error: no API key found.\n"
-            "Set AGENT_API_KEY in .env or pass --api-key.[/red]"
+            f"[red]Error: no API key found.[/red]\n\n"
+            f"Create [bold]{env_path}[/bold] with:\n"
+            f"  [dim]AGENT_API_KEY=sk-...[/dim]\n\n"
+            f"Or pass it directly: [bold]twa --api-key sk-...[/bold]"
         )
         sys.exit(1)
 
