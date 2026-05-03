@@ -42,7 +42,7 @@ from openhands.sdk.security.confirmation_policy import AlwaysConfirm, NeverConfi
 # Register all tools (custom + bash_session wrapping TerminalTool)
 import agent.tools  # noqa: F401
 
-from agent.config import AgentConfig, AgentYamlConfig, _DEFAULT_USER_CONFIG, USER_CONFIG_DIR
+from agent.config import AgentConfig, AgentYamlConfig, _CONFIGS_DIR, _DEFAULT_USER_CONFIG, USER_CONFIG_DIR
 from agent.agent_tracker import AgentTracker, MODEL_PRICING, populate_from_llm_metrics, populate_from_events
 from agent.utils import read_submission
 from agent.trajectory import get_trajectory_path, get_last_trajectory_path, write_trajectory
@@ -221,25 +221,6 @@ AGENT_API_KEY=           # Required: your API key
 # AGENT_BASE_URL=                            # optional: custom API endpoint
 """
 
-_CONFIG_TEMPLATE = """\
-# Token-Wise Agent — interactive mode settings
-# Remove the leading '#' to override a value.
-
-agent:
-  # system_template: "system_prompt_user.j2"
-  llm_params:
-    temperature: 0.5
-  step_limit: 50
-  tools:
-    - bash
-    - glob
-    - grep
-    - smart_reader
-    - smart_editor
-    - think
-"""
-
-
 def _ensure_user_config_dir() -> None:
     """Create ~/.config/token-wise-agent/ with template files on first run."""
     USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -248,7 +229,8 @@ def _ensure_user_config_dir() -> None:
     if not env_path.exists():
         env_path.write_text(_ENV_TEMPLATE)
     if not config_path.exists():
-        config_path.write_text(_CONFIG_TEMPLATE)
+        bundled = _CONFIGS_DIR / "agent_config_user.yaml"
+        config_path.write_text(bundled.read_text(encoding="utf-8"))
 
 
 def _edit_config(target: str, console: Console) -> None:
