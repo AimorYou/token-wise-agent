@@ -10,7 +10,6 @@ from typing import Any, Dict
 
 import yaml
 
-
 _ENV_RE = re.compile(r"\$\{(\w+)(?::([^}]*))?\}")
 
 

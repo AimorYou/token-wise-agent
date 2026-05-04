@@ -17,10 +17,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from pydantic import Field
-
 from openhands.sdk.tool import Action, Observation, register_tool
 from openhands.sdk.tool.tool import ToolAnnotations, ToolDefinition, ToolExecutor
+from pydantic import Field
 
 if TYPE_CHECKING:
     from openhands.sdk.conversation import LocalConversation
@@ -163,9 +162,7 @@ class _GrepExecutor(ToolExecutor):
         all_matches: list[_Match] = []
         truncated = False
         for filepath in _iter_files(search_path, action.include):
-            all_matches.extend(
-                _search_file(filepath, regex, action.context_lines)
-            )
+            all_matches.extend(_search_file(filepath, regex, action.context_lines))
             if len(all_matches) >= MAX_MATCHES:
                 all_matches = all_matches[:MAX_MATCHES]
                 truncated = True

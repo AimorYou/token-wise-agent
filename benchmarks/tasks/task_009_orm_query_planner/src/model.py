@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Type
+from typing import Dict
 
-from .fields import Field, ForeignKey
 from .connection import ConnectionManager
+from .fields import Field, ForeignKey
 from .query import QuerySet
 
 

@@ -1,15 +1,11 @@
 """Tests for concurrent access to EventBus."""
 import threading
 import time
-from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import pytest
-
-from src import EventBus, Event
+from src import Event, EventBus
 from src.handlers import HandlerRegistry
 from src.middleware import MiddlewareChain
-
 
 # ================================================================== Unit tests
 # These directly verify thread-safety properties without relying on timing.

@@ -43,10 +43,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from agent.config import AgentYamlConfig
-from agent.utils import read_submission
 from agent.trajectory import get_trajectory_path
+from agent.utils import read_submission
+
 TASKS_DIR = Path(__file__).resolve().parent / "tasks"
-RUN_PY = PROJECT_ROOT / "run.py"
 
 console = Console()
 
@@ -55,7 +55,8 @@ def prepare_workspace(task_dir: Path, tmp_root: Path) -> Path:
     """Копируем задачу во временную директорию БЕЗ gold_tests/."""
     workspace = tmp_root / task_dir.name
     shutil.copytree(
-        task_dir, workspace,
+        task_dir,
+        workspace,
         ignore=shutil.ignore_patterns("gold_tests", "__pycache__"),
     )
     return workspace
@@ -75,7 +76,7 @@ def _build_agent_cmd(
     task_id: str | None = None,
     traj_output: str | None = None,
 ) -> list[str]:
-    """Build the run.py argument list (shared between local and docker modes)."""
+    """Build the twa argument list (shared between local and docker modes)."""
     cmd = ["--working-dir", working_dir, "--max-steps", str(max_steps), "--no-save-only-last-traj"]
     if model:
         cmd += ["--model", model]
@@ -114,9 +115,11 @@ def run_agent(
     run_id: str | None = None,
     task_id: str | None = None,
 ) -> dict:
-    """Запускаем агента через run.py (локально)."""
-    cmd = [sys.executable, str(RUN_PY)]
-    cmd += _build_agent_cmd(str(workspace), issue_text, model, max_steps, agent_config, verbose, run_id, task_id)
+    """Запускаем агента через twa (локально)."""
+    cmd = ["uv", "run", "twa"]
+    cmd += _build_agent_cmd(
+        str(workspace), issue_text, model, max_steps, agent_config, verbose, run_id, task_id
+    )
 
     start = time.time()
     try:
@@ -199,19 +202,31 @@ def run_agent_docker(
     config_in_container: str | None = None
     if agent_config:
         host_cfg = Path(agent_config).resolve()
-        config_in_container = f"/app/custom_agent_config.yaml"
+        config_in_container = "/app/custom_agent_config.yaml"
         extra_mounts = ["-v", f"{host_cfg}:{config_in_container}:ro"]
 
     env_file = PROJECT_ROOT / ".env"
     traj_output = f"/testbed/{task_id}.traj.json" if task_id else "/testbed/trajectory.traj.json"
-    agent_args = _build_agent_cmd("/testbed", issue_text, model, max_steps, config_in_container, verbose, run_id, task_id, traj_output)
+    agent_args = _build_agent_cmd(
+        "/testbed",
+        issue_text,
+        model,
+        max_steps,
+        config_in_container,
+        verbose,
+        run_id,
+        task_id,
+        traj_output,
+    )
 
     cmd = ["docker", "run", "--rm"]
     cmd += ["-v", f"{workspace}:/testbed"]
     cmd += extra_mounts
     if env_file.exists():
         cmd += ["--env-file", str(env_file)]
-    cmd += ["--timeout", str(timeout)] if False else []  # docker run has no --timeout; handled via subprocess
+    cmd += (
+        ["--timeout", str(timeout)] if False else []
+    )  # docker run has no --timeout; handled via subprocess
     cmd.append(image)
     cmd += agent_args
 
@@ -323,19 +338,38 @@ def run_single_task(
         console.print(f"  Running agent ({mode})...")
         if docker:
             agent_result = run_agent_docker(
-                workspace, issue_text, model, max_steps, timeout,
-                agent_config, docker_image, verbose, run_id, task_id,
+                workspace,
+                issue_text,
+                model,
+                max_steps,
+                timeout,
+                agent_config,
+                docker_image,
+                verbose,
+                run_id,
+                task_id,
             )
         else:
-            agent_result = run_agent(workspace, issue_text, model, max_steps, timeout, agent_config, verbose, run_id, task_id)
+            agent_result = run_agent(
+                workspace,
+                issue_text,
+                model,
+                max_steps,
+                timeout,
+                agent_config,
+                verbose,
+                run_id,
+                task_id,
+            )
 
-        console.print(f"  Agent finished in {agent_result['latency']}s, "
-                       f"submitted={agent_result['submitted']}")
+        console.print(
+            f"  Agent finished in {agent_result['latency']}s, submitted={agent_result['submitted']}"
+        )
 
         if agent_result["explanation"]:
             console.print(f"  Explanation: {agent_result['explanation']}")
 
-        console.print(f"  Running gold tests...")
+        console.print("  Running gold tests...")
         test_result = run_gold_tests(task_dir, workspace)
 
         passed = test_result["all_passed"]
@@ -441,12 +475,24 @@ def main():
     parser.add_argument("--model", help="Model override (e.g. anthropic/claude-opus-4-6)")
     parser.add_argument("--max-steps", type=int, default=30, help="Max agent steps (default: 30)")
     parser.add_argument("--agent-config", help="Path to agent config YAML override")
-    parser.add_argument("--quiet", action="store_true", help="Suppress agent thoughts and tool calls")
+    parser.add_argument(
+        "--quiet", action="store_true", help="Suppress agent thoughts and tool calls"
+    )
     parser.add_argument("--save", help="Save results to JSON file")
     # Docker flags
-    parser.add_argument("--docker", action="store_true", help="Run agent inside Docker container (task mounted at /testbed)")
-    parser.add_argument("--docker-image", default=DOCKER_IMAGE_DEFAULT, help=f"Docker image to use (default: {DOCKER_IMAGE_DEFAULT})")
-    parser.add_argument("--docker-build", action="store_true", help="Force rebuild of Docker image before running")
+    parser.add_argument(
+        "--docker",
+        action="store_true",
+        help="Run agent inside Docker container (task mounted at /testbed)",
+    )
+    parser.add_argument(
+        "--docker-image",
+        default=DOCKER_IMAGE_DEFAULT,
+        help=f"Docker image to use (default: {DOCKER_IMAGE_DEFAULT})",
+    )
+    parser.add_argument(
+        "--docker-build", action="store_true", help="Force rebuild of Docker image before running"
+    )
     args = parser.parse_args()
 
     task_dirs = sorted(d for d in TASKS_DIR.iterdir() if d.is_dir())
@@ -471,7 +517,11 @@ def main():
     for task_dir in task_dirs:
         console.rule(f"[bold]{task_dir.name}[/bold]")
         r = run_single_task(
-            task_dir, args.model, args.max_steps, timeout, args.agent_config,
+            task_dir,
+            args.model,
+            args.max_steps,
+            timeout,
+            args.agent_config,
             verbose=not args.quiet,
             docker=args.docker,
             docker_image=args.docker_image,

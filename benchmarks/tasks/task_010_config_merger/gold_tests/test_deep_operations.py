@@ -1,9 +1,7 @@
 """Tests for deep merge, diff, and patch on complex nested structures."""
 import copy
-import pytest
 
-from src import deep_merge, compute_diff, apply_patch
-
+from src import apply_patch, compute_diff, deep_merge
 
 # ================================================================== merge
 

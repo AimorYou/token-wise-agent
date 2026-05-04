@@ -1,7 +1,7 @@
 """High-level data service that combines storage and caching."""
 
-from .storage import Storage
 from .cache import LRUCache
+from .storage import Storage
 
 
 class DataService:

@@ -6,10 +6,8 @@ despite the plugin discovery and instantiation bugs.
 import os
 
 import pytest
-
-from src.plugin_registry import clear_registry, get_plugin, list_plugins, register_plugin
 from src.plugin_loader import discover_plugins
-
+from src.plugin_registry import clear_registry, get_plugin, list_plugins, register_plugin
 
 PLUGINS_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "plugins")
 

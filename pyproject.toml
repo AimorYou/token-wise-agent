@@ -25,10 +25,24 @@ packages = ["agent"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["benchmarks/tasks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E402", "E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agent"]
+
 [dependency-groups]
 dev = [
     "hatch-vcs>=0.4.0",
     "numpy>=1.26.0",
     "pandas>=2.2.0",
+    "pre-commit>=4.0.0",
     "pytest>=9.0.2",
+    "ruff>=0.9.0",
 ]

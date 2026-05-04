@@ -3,9 +3,8 @@
 These tests cover basic operations that work correctly even with
 the invalidation bug (first set+get for each key works fine).
 """
-import pytest
-from src.service import DataService
 from src.cache import LRUCache
+from src.service import DataService
 from src.storage import Storage
 
 

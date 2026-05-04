@@ -11,10 +11,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pydantic import Field
-
 from openhands.sdk.tool import Action, Observation, register_tool
 from openhands.sdk.tool.tool import ToolAnnotations, ToolDefinition, ToolExecutor
+from pydantic import Field
 
 if TYPE_CHECKING:
     from openhands.sdk.conversation import LocalConversation
@@ -61,9 +60,7 @@ class _GlobExecutor(ToolExecutor):
 
         base = Path(search_dir)
         if not base.is_dir():
-            return GlobObservation.from_text(
-                f"Directory not found: {action.path}", is_error=True
-            )
+            return GlobObservation.from_text(f"Directory not found: {action.path}", is_error=True)
 
         matches = sorted(base.glob(action.pattern), key=lambda p: p.stat().st_mtime, reverse=True)
         # Filter to files only

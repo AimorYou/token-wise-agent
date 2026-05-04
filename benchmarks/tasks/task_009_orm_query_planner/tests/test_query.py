@@ -1,9 +1,7 @@
 """Tests for litemap QuerySet."""
 import pytest
-
-from src import ConnectionManager, IntField, StringField, BoolField, ForeignKey
+from src import BoolField, ConnectionManager, ForeignKey, IntField, StringField
 from src.model import Model
-
 
 # ------------------------------------------------------------------ models
 

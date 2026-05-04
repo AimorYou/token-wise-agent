@@ -22,9 +22,9 @@ Format (compatible with SWE-bench / mini-swe-agent):
 
 import json
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from platformdirs import user_config_dir
 
@@ -125,11 +125,13 @@ def write_trajectory(
         for action in actions:
             tc_id = _tool_call_id(action)
             args = _tool_args(action)
-            tool_calls_json.append({
-                "id": tc_id,
-                "type": "function",
-                "function": {"name": action.tool_name, "arguments": args},
-            })
+            tool_calls_json.append(
+                {
+                    "id": tc_id,
+                    "type": "function",
+                    "function": {"name": action.tool_name, "arguments": args},
+                }
+            )
 
         if step_idx <= len(tracker.steps):
             s = tracker.steps[step_idx - 1]
@@ -142,21 +144,25 @@ def write_trajectory(
         else:
             usage = {}
 
-        messages.append({
-            "role": "assistant",
-            "content": thought_text,
-            "tool_calls": tool_calls_json,
-            "usage": usage,
-        })
+        messages.append(
+            {
+                "role": "assistant",
+                "content": thought_text,
+                "tool_calls": tool_calls_json,
+                "usage": usage,
+            }
+        )
 
         for action in actions:
             tc_id = _tool_call_id(action)
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc_id,
-                "tool_name": action.tool_name,
-                "content": tool_results.get(tc_id, ""),
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc_id,
+                    "tool_name": action.tool_name,
+                    "content": tool_results.get(tc_id, ""),
+                }
+            )
 
     # ------------------------------------------------------------------ #
     # info section                                                         #
@@ -207,6 +213,7 @@ def write_trajectory(
 # ------------------------------------------------------------------ #
 # Helpers                                                             #
 # ------------------------------------------------------------------ #
+
 
 def _tool_call_id(action: Any) -> str:
     tc = getattr(action, "tool_call", None)

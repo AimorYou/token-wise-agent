@@ -5,12 +5,9 @@ import os
 import tempfile
 from typing import List
 
-import pytest
-
 from src.loader import load_files_async
-from src.processor import process_batch, transform
 from src.pipeline import run_pipeline, run_pipeline_with_report
-from src.utils import generate_report
+from src.processor import process_batch, transform
 
 
 # ------------------------------------------------------------------ helpers

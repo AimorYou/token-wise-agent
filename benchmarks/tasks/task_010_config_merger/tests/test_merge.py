@@ -1,12 +1,7 @@
 """Tests for confmerge — merge, diff, patch, and schema validation."""
-import os
-import tempfile
 
-import pytest
 
-from src import load_config, dump_config, deep_merge, compute_diff
-from src import apply_patch, validate
-
+from src import apply_patch, compute_diff, deep_merge, dump_config, load_config, validate
 
 # ------------------------------------------------------------------ loader
 

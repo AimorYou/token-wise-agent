@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from src.timeseries import rolling_mean, exponential_moving_average
+from src.timeseries import exponential_moving_average, rolling_mean
 
 
 class TestRollingMean:

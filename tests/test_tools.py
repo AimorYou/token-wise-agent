@@ -4,16 +4,14 @@ import os
 import tempfile
 
 import pytest
+from openhands.sdk.tool import list_registered_tools
 
 # Ensure tools are registered
 import agent.tools  # noqa: F401
-from openhands.sdk.tool import list_registered_tools
-
 
 # ---------------------------------------------------------------------------
 # BashTool
 # ---------------------------------------------------------------------------
-
 from agent.tools.bash import BashAction, BashTool
 
 
@@ -83,9 +81,7 @@ def repo_dir():
         (open(os.path.join(d, "a.py"), "w")).write(
             "def foo():\n    return 42\n\ndef bar():\n    pass\n"
         )
-        (open(os.path.join(d, "b.py"), "w")).write(
-            "# This file calls foo\nresult = foo()\n"
-        )
+        (open(os.path.join(d, "b.py"), "w")).write("# This file calls foo\nresult = foo()\n")
         (open(os.path.join(d, "notes.txt"), "w")).write("foo is a function\n")
         yield d
 
@@ -250,8 +246,12 @@ def editor_env():
 
 def test_editor_replace(editor_env):
     td, ex, conv = editor_env
-    obs = ex(SmartEditorAction(command="replace", path="src/module.py",
-                               old="return a - b", new="return a + b"), conv)
+    obs = ex(
+        SmartEditorAction(
+            command="replace", path="src/module.py", old="return a - b", new="return a + b"
+        ),
+        conv,
+    )
     assert not obs.is_error
     with open(os.path.join(td, "src/module.py")) as f:
         assert "return a + b" in f.read()
@@ -259,24 +259,33 @@ def test_editor_replace(editor_env):
 
 def test_editor_replace_ambiguous(editor_env):
     _, ex, conv = editor_env
-    obs = ex(SmartEditorAction(command="replace", path="src/module.py",
-                               old="return", new="yield"), conv)
+    obs = ex(
+        SmartEditorAction(command="replace", path="src/module.py", old="return", new="yield"), conv
+    )
     assert obs.is_error
     assert "2 times" in obs.text
 
 
 def test_editor_replace_not_found(editor_env):
     _, ex, conv = editor_env
-    obs = ex(SmartEditorAction(command="replace", path="src/module.py",
-                               old="nonexistent_string", new="x"), conv)
+    obs = ex(
+        SmartEditorAction(
+            command="replace", path="src/module.py", old="nonexistent_string", new="x"
+        ),
+        conv,
+    )
     assert obs.is_error
     assert "not found" in obs.text.lower()
 
 
 def test_editor_insert(editor_env):
     td, ex, conv = editor_env
-    obs = ex(SmartEditorAction(command="insert", path="src/module.py",
-                               line=1, text='    """Add two numbers."""'), conv)
+    obs = ex(
+        SmartEditorAction(
+            command="insert", path="src/module.py", line=1, text='    """Add two numbers."""'
+        ),
+        conv,
+    )
     assert not obs.is_error
     with open(os.path.join(td, "src/module.py")) as f:
         content = f.read()
@@ -287,16 +296,14 @@ def test_editor_insert(editor_env):
 
 def test_editor_create(editor_env):
     td, ex, conv = editor_env
-    obs = ex(SmartEditorAction(command="create", path="src/new.py",
-                               content="# new file\n"), conv)
+    obs = ex(SmartEditorAction(command="create", path="src/new.py", content="# new file\n"), conv)
     assert not obs.is_error
     assert os.path.exists(os.path.join(td, "src/new.py"))
 
 
 def test_editor_create_existing_fails(editor_env):
     _, ex, conv = editor_env
-    obs = ex(SmartEditorAction(command="create", path="src/module.py",
-                               content="overwrite"), conv)
+    obs = ex(SmartEditorAction(command="create", path="src/module.py", content="overwrite"), conv)
     assert obs.is_error
     assert "already exists" in obs.text.lower()
 
@@ -310,8 +317,12 @@ def test_editor_delete(editor_env):
 
 def test_editor_undo_replace(editor_env):
     td, ex, conv = editor_env
-    ex(SmartEditorAction(command="replace", path="src/module.py",
-                         old="return a - b", new="return a + b"), conv)
+    ex(
+        SmartEditorAction(
+            command="replace", path="src/module.py", old="return a - b", new="return a + b"
+        ),
+        conv,
+    )
     obs = ex(SmartEditorAction(command="undo", path="src/module.py"), conv)
     assert not obs.is_error
     with open(os.path.join(td, "src/module.py")) as f:
@@ -342,8 +353,7 @@ def test_editor_patch(editor_env):
 
 def test_editor_path_outside_workdir(editor_env):
     _, ex, conv = editor_env
-    obs = ex(SmartEditorAction(command="replace", path="../../etc/passwd",
-                               old="x", new="y"), conv)
+    obs = ex(SmartEditorAction(command="replace", path="../../etc/passwd", old="x", new="y"), conv)
     assert obs.is_error
     assert "outside" in obs.text.lower()
 
@@ -352,7 +362,7 @@ def test_editor_path_outside_workdir(editor_env):
 # GlobTool
 # ---------------------------------------------------------------------------
 
-from agent.tools.glob import GlobAction, GlobTool, _GlobExecutor
+from agent.tools.glob import GlobAction, _GlobExecutor
 
 
 def test_glob_finds_py_files():
@@ -409,6 +419,7 @@ def test_submit_creates_json():
         obs = ex(SubmitAction(explanation="Fixed the bug"))
         assert not obs.is_error
         import json
+
         data = json.loads(open(os.path.join(td, "SUBMISSION.json")).read())
         assert data["submitted"] is True
         assert data["explanation"] == "Fixed the bug"
@@ -417,6 +428,7 @@ def test_submit_creates_json():
 # ---------------------------------------------------------------------------
 # Tool registry
 # ---------------------------------------------------------------------------
+
 
 def test_custom_tools_registered():
     registered = list_registered_tools()
@@ -433,17 +445,17 @@ def test_custom_tools_registered():
 # AgentYamlConfig
 # ---------------------------------------------------------------------------
 
-from agent.config import AgentYamlConfig, _DEFAULT_CONFIG
+from agent.config import _DEFAULT_CONFIG, AgentYamlConfig
 
 
 def test_default_config_path():
-    """Default config must live at configs/agent_config.yaml (not agent/)."""
+    """Default config must live inside the agent package under configs/."""
     assert _DEFAULT_CONFIG.parts[-2] == "configs"
     assert _DEFAULT_CONFIG.name == "agent_config.yaml"
 
 
 def test_default_config_loads():
-    """configs/agent_config.yaml must exist and be loadable."""
+    """agent/configs/agent_config.yaml must exist and be loadable."""
     assert _DEFAULT_CONFIG.exists(), f"Config not found: {_DEFAULT_CONFIG}"
     cfg = AgentYamlConfig.load()
     assert cfg.step_limit > 0
@@ -451,13 +463,12 @@ def test_default_config_loads():
 
 
 def test_user_config_loads():
-    """configs/agent_config_user.yaml must exist and be loadable."""
-    from pathlib import Path
+    """agent/configs/agent_config_user.yaml must exist and be loadable."""
     user_cfg_path = _DEFAULT_CONFIG.parent / "agent_config_user.yaml"
     assert user_cfg_path.exists(), f"User config not found: {user_cfg_path}"
     cfg = AgentYamlConfig.load(user_cfg_path)
-    assert "bash_session" in cfg.tools
     assert "think" in cfg.tools
+    assert "bash" in cfg.tools
 
 
 # ---------------------------------------------------------------------------

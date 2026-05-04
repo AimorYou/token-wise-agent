@@ -12,10 +12,9 @@ import os
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from pydantic import Field
-
 from openhands.sdk.tool import Action, Observation, register_tool
 from openhands.sdk.tool.tool import ToolAnnotations, ToolDefinition, ToolExecutor
+from pydantic import Field
 
 if TYPE_CHECKING:
     from openhands.sdk.conversation import LocalConversation
@@ -72,9 +71,7 @@ class _SmartReaderExecutor(ToolExecutor):
         # Resolve relative paths against workspace
         path = action.path
         if not os.path.isabs(path) and conversation is not None:
-            working_dir = getattr(
-                getattr(conversation, "workspace", None), "working_dir", None
-            )
+            working_dir = getattr(getattr(conversation, "workspace", None), "working_dir", None)
             if working_dir:
                 path = os.path.join(working_dir, path)
 
@@ -82,9 +79,7 @@ class _SmartReaderExecutor(ToolExecutor):
             with open(path, encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
         except FileNotFoundError:
-            return SmartReaderObservation.from_text(
-                f"File not found: {action.path}", is_error=True
-            )
+            return SmartReaderObservation.from_text(f"File not found: {action.path}", is_error=True)
         except OSError as e:
             return SmartReaderObservation.from_text(str(e), is_error=True)
 
@@ -103,9 +98,7 @@ class _SmartReaderExecutor(ToolExecutor):
         selected = lines[start:end]
 
         # Format with line numbers
-        numbered = "".join(
-            f"{start + i + 1:>6} | {line}" for i, line in enumerate(selected)
-        )
+        numbered = "".join(f"{start + i + 1:>6} | {line}" for i, line in enumerate(selected))
 
         # Truncate if too large
         truncated = False

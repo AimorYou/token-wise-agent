@@ -20,11 +20,11 @@ _APP_NAME = "token-wise-agent"
 console = Console()
 
 _TOOL_CATEGORY: dict[str, str] = {
-    "glob":         "read",
-    "grep":         "read",
+    "glob": "read",
+    "grep": "read",
     "smart_reader": "read",
     "smart_editor": "write",
-    "bash":         "execute",
+    "bash": "execute",
     "bash_session": "execute",
 }
 _CATEGORIES = ("read", "write", "execute", "test")
@@ -112,23 +112,23 @@ def _collect_metrics(traj: dict) -> dict:
         submit_explanation = submission
 
     return {
-        "task_id":      _strip_task_prefix(info.get("task_id", "—")),
-        "exit_status":  info.get("exit_status", "—"),
-        "api_calls":    model_stats.get("api_calls", 0),
-        "cost":         model_stats.get("instance_cost", 0.0),
-        "latency":      model_stats.get("latency", 0.0),
-        "reasoning":    reasoning_chars,
-        "action":       action_chars,
-        "observation":  obs_chars,
-        "submit":       len(submit_explanation),
-        "action_read":  action_by_cat["read"],
+        "task_id": _strip_task_prefix(info.get("task_id", "—")),
+        "exit_status": info.get("exit_status", "—"),
+        "api_calls": model_stats.get("api_calls", 0),
+        "cost": model_stats.get("instance_cost", 0.0),
+        "latency": model_stats.get("latency", 0.0),
+        "reasoning": reasoning_chars,
+        "action": action_chars,
+        "observation": obs_chars,
+        "submit": len(submit_explanation),
+        "action_read": action_by_cat["read"],
         "action_write": action_by_cat["write"],
-        "action_exec":  action_by_cat["execute"],
-        "action_test":  action_by_cat["test"],
-        "obs_read":     obs_by_cat["read"],
-        "obs_write":    obs_by_cat["write"],
-        "obs_exec":     obs_by_cat["execute"],
-        "obs_test":     obs_by_cat["test"],
+        "action_exec": action_by_cat["execute"],
+        "action_test": action_by_cat["test"],
+        "obs_read": obs_by_cat["read"],
+        "obs_write": obs_by_cat["write"],
+        "obs_exec": obs_by_cat["execute"],
+        "obs_test": obs_by_cat["test"],
     }
 
 
@@ -139,23 +139,23 @@ def _avg(rows: list[dict], key: str) -> float:
 
 def _fmt(n: int) -> str:
     if n >= 1_000_000:
-        return f"{n/1_000_000:.1f}M"
+        return f"{n / 1_000_000:.1f}M"
     if n >= 1_000:
-        return f"{n/1_000:.1f}k"
+        return f"{n / 1_000:.1f}k"
     return str(n)
 
 
 def print_summary(rows: list[dict]) -> None:
     t = Table(title="Trajectory Summary", show_header=True, header_style="bold cyan")
-    t.add_column("Task",     style="bold", no_wrap=True)
-    t.add_column("Exit",     justify="center", no_wrap=True)
-    t.add_column("Calls",    justify="right")
-    t.add_column("Cost",     justify="right")
-    t.add_column("Time",     justify="right")
-    t.add_column("Think",    justify="right")
-    t.add_column("T.In",     justify="right")
-    t.add_column("T.Out",    justify="right")
-    t.add_column("Submit",   justify="right")
+    t.add_column("Task", style="bold", no_wrap=True)
+    t.add_column("Exit", justify="center", no_wrap=True)
+    t.add_column("Calls", justify="right")
+    t.add_column("Cost", justify="right")
+    t.add_column("Time", justify="right")
+    t.add_column("Think", justify="right")
+    t.add_column("T.In", justify="right")
+    t.add_column("T.Out", justify="right")
+    t.add_column("Submit", justify="right")
 
     for r in rows:
         color = "green" if r["exit_status"] == "submitted" else "red"
@@ -174,7 +174,8 @@ def print_summary(rows: list[dict]) -> None:
     if len(rows) > 1:
         t.add_section()
         t.add_row(
-            "[dim]avg[/dim]", "—",
+            "[dim]avg[/dim]",
+            "—",
             f"{_avg(rows, 'api_calls'):.1f}",
             f"${_avg(rows, 'cost'):.4f}",
             f"{_avg(rows, 'latency'):.1f}s",
@@ -191,16 +192,20 @@ def print_breakdown(rows: list[dict]) -> None:
     # Print category labels manually as a pseudo-header row
     cats = ("Read", "Write", "Execute", "Test")
 
-    t = Table(title="Tool Breakdown  (In = chars sent, Out = chars received)",
-              show_header=True, header_style="bold cyan")
+    t = Table(
+        title="Tool Breakdown  (In = chars sent, Out = chars received)",
+        show_header=True,
+        header_style="bold cyan",
+    )
     t.add_column("Task", style="bold", no_wrap=True)
     for cat in cats:
-        t.add_column(f"{cat} In",  justify="right", no_wrap=True)
+        t.add_column(f"{cat} In", justify="right", no_wrap=True)
         t.add_column(f"{cat} Out", justify="right", no_wrap=True)
 
     def _row_vals(r: dict) -> list[str]:
         return [
-            v for c in ("read", "write", "exec", "test")
+            v
+            for c in ("read", "write", "exec", "test")
             for v in (_fmt(r[f"action_{c}"]), _fmt(r[f"obs_{c}"]))
         ]
 
@@ -208,10 +213,9 @@ def print_breakdown(rows: list[dict]) -> None:
         t.add_row(r["task_id"], *_row_vals(r))
 
     if len(rows) > 1:
-        avg_r = (
-            {f"action_{c}": int(_avg(rows, f"action_{c}")) for c in ("read", "write", "exec", "test")}
-            | {f"obs_{c}": int(_avg(rows, f"obs_{c}")) for c in ("read", "write", "exec", "test")}
-        )
+        avg_r = {
+            f"action_{c}": int(_avg(rows, f"action_{c}")) for c in ("read", "write", "exec", "test")
+        } | {f"obs_{c}": int(_avg(rows, f"obs_{c}")) for c in ("read", "write", "exec", "test")}
         t.add_section()
         t.add_row("[dim]avg[/dim]", *_row_vals(avg_r))
 
@@ -253,6 +257,7 @@ def resolve_paths(arg: str | None) -> list[Path]:
 
 def main() -> None:
     import argparse
+
     parser = argparse.ArgumentParser(description="Analyze agent trajectory files")
     parser.add_argument("path", nargs="?", help="File or directory (default: last run)")
     args = parser.parse_args()

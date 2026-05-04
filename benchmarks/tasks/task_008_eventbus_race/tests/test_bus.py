@@ -1,12 +1,14 @@
 """Tests for EventBus — core functionality."""
 import asyncio
 
-import pytest
-
-from src import EventBus, Event, PriorityEvent
-from src import LoggingMiddleware, RetryMiddleware, TimeoutMiddleware
-from src.serialization import serialize_event, deserialize_event
-
+from src import (
+    Event,
+    EventBus,
+    LoggingMiddleware,
+    PriorityEvent,
+    RetryMiddleware,
+)
+from src.serialization import deserialize_event, serialize_event
 
 # ------------------------------------------------------------------ basic
 

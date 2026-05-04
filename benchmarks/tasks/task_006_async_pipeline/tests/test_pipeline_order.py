@@ -8,8 +8,6 @@ import os
 import tempfile
 from typing import List
 
-import pytest
-
 from src.loader import load_files_async
 from src.processor import process_batch, transform
 

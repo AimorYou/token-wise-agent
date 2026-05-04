@@ -17,10 +17,9 @@ import subprocess
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from pydantic import Field
-
 from openhands.sdk.tool import Action, Observation, register_tool
 from openhands.sdk.tool.tool import ToolAnnotations, ToolDefinition, ToolExecutor
+from pydantic import Field
 
 if TYPE_CHECKING:
     from openhands.sdk.conversation import LocalConversation

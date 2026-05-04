@@ -8,7 +8,6 @@ import tempfile
 
 import pytest
 import yaml
-
 from src.config_loader import load_config
 
 

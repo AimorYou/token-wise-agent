@@ -28,7 +28,7 @@ def discover_plugins(plugin_dir: str) -> List[str]:
     """
     imported: List[str] = []
     
-    from src.plugins import example_plugin          # noqa: F401
+    from src.plugins import example_plugin  # noqa: F401
     imported.append("example_plugin")
 
     for filename in os.listdir(plugin_dir):

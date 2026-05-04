@@ -37,7 +37,9 @@ _PROMPTS_DIR = _AGENT_DIR / "prompts"
 _DEFAULT_CONFIG = _CONFIGS_DIR / "agent_config.yaml"
 # User YAML override takes priority over bundled default
 _user_yaml_override = USER_CONFIG_DIR / "agent_config_user.yaml"
-_DEFAULT_USER_CONFIG = _user_yaml_override if _user_yaml_override.exists() else _CONFIGS_DIR / "agent_config_user.yaml"
+_DEFAULT_USER_CONFIG = (
+    _user_yaml_override if _user_yaml_override.exists() else _CONFIGS_DIR / "agent_config_user.yaml"
+)
 
 # SDK built-in tools that are controlled via Agent(include_default_tools=...)
 _SDK_BUILTIN_TOOLS = {"think": "ThinkTool"}
@@ -98,11 +100,7 @@ class AgentYamlConfig:
     @property
     def include_default_tools(self) -> list[str]:
         """SDK class names for built-in tools that should be included."""
-        return [
-            _SDK_BUILTIN_TOOLS[t]
-            for t in self.tools
-            if t in _SDK_BUILTIN_TOOLS
-        ]
+        return [_SDK_BUILTIN_TOOLS[t] for t in self.tools if t in _SDK_BUILTIN_TOOLS]
 
 
 @dataclass
@@ -113,9 +111,7 @@ class AgentConfig:
     model: str = field(
         default_factory=lambda: os.getenv("AGENT_MODEL", "anthropic/claude-sonnet-4-6")
     )
-    base_url: str | None = field(
-        default_factory=lambda: os.getenv("AGENT_BASE_URL") or None
-    )
+    base_url: str | None = field(default_factory=lambda: os.getenv("AGENT_BASE_URL") or None)
     api_key: str | None = field(default_factory=_resolve_api_key)
 
     # --- from configs/agent_config.yaml (behavior) ---

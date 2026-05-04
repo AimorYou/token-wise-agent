@@ -1,7 +1,7 @@
-from .events import Event, PriorityEvent
 from .bus import EventBus
+from .events import Event, PriorityEvent
 from .handlers import HandlerRegistry
-from .middleware import MiddlewareChain, LoggingMiddleware, RetryMiddleware, TimeoutMiddleware
+from .middleware import LoggingMiddleware, MiddlewareChain, RetryMiddleware, TimeoutMiddleware
 
 __all__ = [
     "Event",

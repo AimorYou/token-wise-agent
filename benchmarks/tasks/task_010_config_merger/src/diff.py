@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, List, Tuple
-
+from typing import Any, Dict, List
 
 DiffEntry = Dict[str, Any]
 # Each entry: {"op": "added"|"removed"|"changed", "path": str, "value": ..., "old": ...}

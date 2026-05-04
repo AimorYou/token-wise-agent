@@ -1,6 +1,5 @@
 """Configuration helper utilities."""
 
-from typing import Any
 
 DEFAULTS = {
     "debug": False,

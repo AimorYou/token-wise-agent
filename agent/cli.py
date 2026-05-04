@@ -25,28 +25,36 @@ from pathlib import Path
 
 os.environ.setdefault("OPENHANDS_SUPPRESS_BANNER", "1")
 
+# OpenHands SDK
+from openhands.sdk import LLM, Agent, LocalConversation
+from openhands.sdk.conversation import get_agent_final_response
+from openhands.sdk.conversation.exceptions import ConversationRunError
+from openhands.sdk.conversation.state import ConversationExecutionStatus
+from openhands.sdk.conversation.visualizer import DefaultConversationVisualizer
+from openhands.sdk.event.conversation_error import ConversationErrorEvent
+from openhands.sdk.security.confirmation_policy import AlwaysConfirm, NeverConfirm
+from openhands.sdk.tool import Tool
 from pydantic import SecretStr
 from rich.console import Console
 from rich.panel import Panel
 
-# OpenHands SDK
-from openhands.sdk import Agent, LLM, LocalConversation
-from openhands.sdk.conversation import get_agent_final_response
-from openhands.sdk.conversation.exceptions import ConversationRunError
-from openhands.sdk.conversation.state import ConversationExecutionStatus
-from openhands.sdk.tool import Tool
-from openhands.sdk.conversation.visualizer import DefaultConversationVisualizer
-from openhands.sdk.event.conversation_error import ConversationErrorEvent
-from openhands.sdk.security.confirmation_policy import AlwaysConfirm, NeverConfirm
-
 # Register all tools (custom + bash_session wrapping TerminalTool)
 import agent.tools  # noqa: F401
-
-from agent.config import AgentConfig, AgentYamlConfig, _CONFIGS_DIR, _DEFAULT_USER_CONFIG, USER_CONFIG_DIR
-from agent.agent_tracker import AgentTracker, MODEL_PRICING, populate_from_llm_metrics, populate_from_events
+from agent.agent_tracker import (
+    MODEL_PRICING,
+    AgentTracker,
+    populate_from_events,
+    populate_from_llm_metrics,
+)
+from agent.config import (
+    _CONFIGS_DIR,
+    _DEFAULT_USER_CONFIG,
+    USER_CONFIG_DIR,
+    AgentConfig,
+    AgentYamlConfig,
+)
+from agent.trajectory import get_last_trajectory_path, get_trajectory_path, write_trajectory
 from agent.utils import read_submission
-from agent.trajectory import get_trajectory_path, get_last_trajectory_path, write_trajectory
-
 
 _MAX_RECOVERY_ATTEMPTS = 3
 
@@ -93,21 +101,22 @@ def interactive_mode(config: AgentConfig, console: Console) -> None:
     )
 
     console.print()
-    console.print(Panel(
-        f"[bold white]Token-Wise Agent[/bold white]\n\n"
-        f"  [dim]Model    [/dim]  {config.model}\n"
-        f"  [dim]Workspace[/dim]  {config.working_dir}\n"
-        f"  [dim]Steps    [/dim]  {config.effective_max_steps} per turn\n\n"
-        f"[dim]/confirm — toggle confirmation mode · exit or Ctrl+C to quit[/dim]",
-        border_style="cyan",
-        title="[bold cyan]◆ Interactive Mode[/bold cyan]",
-        padding=(1, 2),
-    ))
+    console.print(
+        Panel(
+            f"[bold white]Token-Wise Agent[/bold white]\n\n"
+            f"  [dim]Model    [/dim]  {config.model}\n"
+            f"  [dim]Workspace[/dim]  {config.working_dir}\n"
+            f"  [dim]Steps    [/dim]  {config.effective_max_steps} per turn\n\n"
+            f"[dim]/confirm — toggle confirmation mode · exit or Ctrl+C to quit[/dim]",
+            border_style="cyan",
+            title="[bold cyan]◆ Interactive Mode[/bold cyan]",
+            padding=(1, 2),
+        )
+    )
     console.print()
 
     tracker = AgentTracker(model=config.model)
     tracker.start()
-    prev_cost = 0.0
     confirm_state = False
 
     while True:
@@ -164,12 +173,14 @@ def interactive_mode(config: AgentConfig, console: Console) -> None:
             continue
 
         if final:
-            console.print(Panel(
-                final,
-                title="[bold green]Agent[/bold green]",
-                border_style="green",
-                padding=(1, 2),
-            ))
+            console.print(
+                Panel(
+                    final,
+                    title="[bold green]Agent[/bold green]",
+                    border_style="green",
+                    padding=(1, 2),
+                )
+            )
 
     tracker.stop()
 
@@ -209,6 +220,7 @@ AGENT_API_KEY=           # Required: your API key
 # AGENT_BASE_URL=                            # optional: custom API endpoint
 """
 
+
 def _ensure_user_config_dir() -> None:
     """Create ~/.config/token-wise-agent/ with template files on first run."""
     USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -224,6 +236,7 @@ def _ensure_user_config_dir() -> None:
 def _edit_config(target: str, console: Console) -> None:
     """Open a config file in $EDITOR."""
     import subprocess
+
     files = {
         "env": USER_CONFIG_DIR / ".env",
         "config": USER_CONFIG_DIR / "agent_config_user.yaml",
@@ -243,13 +256,18 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command")
     edit_parser = subparsers.add_parser("edit", help="Edit configuration files")
     edit_parser.add_argument(
-        "file", nargs="?", choices=["env", "config"], default="env",
+        "file",
+        nargs="?",
+        choices=["env", "config"],
+        default="env",
         help="Which file to edit: env (default) or config",
     )
 
     parser.add_argument("task", nargs="?", help="Task for the agent to solve")
     parser.add_argument(
-        "--interactive", "-i", action="store_true",
+        "--interactive",
+        "-i",
+        action="store_true",
         help="Start an interactive chat session (default when no task is given)",
     )
     parser.add_argument("--list-tools", action="store_true", help="List tools from config and exit")
@@ -263,11 +281,14 @@ def main() -> None:
     parser.add_argument("--run-id", help="Run identifier (shared across a benchmark batch)")
     parser.add_argument("--task-id", help="Task identifier (e.g. task-001-fix-foo)")
     parser.add_argument(
-        "--save-only-last-traj", action=argparse.BooleanOptionalAction, default=True,
+        "--save-only-last-traj",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help="If true (default), overwrite last_twa_run.traj.json; if false, save to {run_id}/{task_id}.traj.json",
     )
     parser.add_argument(
-        "--traj-output", metavar="PATH",
+        "--traj-output",
+        metavar="PATH",
         help="Explicit path for the trajectory file (overrides --save-only-last-traj logic)",
     )
     args = parser.parse_args()
@@ -299,7 +320,7 @@ def main() -> None:
 
     if args.list_tools:
         yaml_cfg = config.yaml_config
-        console.print(f"\n[bold]Tools from config:[/bold]")
+        console.print("\n[bold]Tools from config:[/bold]")
         for name in yaml_cfg.tools:
             console.print(f"  [green]●[/green]  [bold]{name}[/bold]")
         console.print(f"\n  Custom tools: {yaml_cfg.custom_tool_names}")

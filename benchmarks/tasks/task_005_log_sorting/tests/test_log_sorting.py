@@ -3,12 +3,10 @@
 These tests cover log parsing and same-timezone sorting
 that work correctly despite the timezone-awareness bug.
 """
-from datetime import datetime
 
 import pytest
-
-from src.log_parser import parse_log_line
 from src.aggregator import aggregate_logs
+from src.log_parser import parse_log_line
 
 
 class TestParseLogLine:

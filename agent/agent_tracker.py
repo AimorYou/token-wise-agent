@@ -171,5 +171,3 @@ def populate_from_events(tracker: AgentTracker, events: Any) -> None:
             tool_errors += 1
     tracker.total_tool_calls = total_tool_calls
     tracker.tool_errors = tool_errors
-
-

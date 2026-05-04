@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, List
 
 from .events import Event
 from .handlers import HandlerRegistry

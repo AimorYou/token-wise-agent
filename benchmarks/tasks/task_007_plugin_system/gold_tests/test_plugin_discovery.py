@@ -3,11 +3,9 @@
 import os
 
 import pytest
-
-from src.plugin_registry import clear_registry, get_plugin, list_plugins
-from src.plugin_loader import discover_plugins
 from src.app import App
-
+from src.plugin_loader import discover_plugins
+from src.plugin_registry import clear_registry, get_plugin, list_plugins
 
 PLUGINS_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "plugins")
 

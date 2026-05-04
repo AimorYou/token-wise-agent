@@ -4,9 +4,8 @@ import tempfile
 
 import pytest
 import yaml
-
-from src.config_loader import load_config
 from src.app import App
+from src.config_loader import load_config
 
 
 # ------------------------------------------------------------------ helpers

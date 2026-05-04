@@ -1,10 +1,9 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
-
+from src.aggregator import aggregate_logs
 from src.log_parser import parse_log_line
 from src.time_utils import parse_timestamp
-from src.aggregator import aggregate_logs
 
 
 # ------------------------------------------------------------------ time_utils

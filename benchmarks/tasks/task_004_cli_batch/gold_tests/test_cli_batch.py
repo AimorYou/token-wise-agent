@@ -2,7 +2,6 @@ import os
 import tempfile
 
 import pytest
-
 from src.cli import main
 from src.file_utils import list_supported_files
 

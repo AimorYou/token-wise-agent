@@ -4,7 +4,6 @@ import argparse
 from typing import Dict
 
 from .processor import process_file
-from .file_utils import list_supported_files
 
 
 def build_parser() -> argparse.ArgumentParser:

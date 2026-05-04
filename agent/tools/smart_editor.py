@@ -18,10 +18,9 @@ import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import Field
-
 from openhands.sdk.tool import Action, Observation, register_tool
 from openhands.sdk.tool.tool import ToolAnnotations, ToolDefinition, ToolExecutor
+from pydantic import Field
 
 if TYPE_CHECKING:
     from openhands.sdk.conversation import LocalConversation
@@ -30,6 +29,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 # Edit history (per-executor instance, survives across tool calls)
 # ---------------------------------------------------------------------------
+
 
 class _EditRecord:
     """One undo-able change."""
@@ -71,6 +71,7 @@ class _EditHistory:
 # ---------------------------------------------------------------------------
 # Patch parser  (*** Begin Patch … *** End Patch)
 # ---------------------------------------------------------------------------
+
 
 def _apply_patch(patch_text: str, working_dir: str) -> list[str]:
     """Parse and apply a structured patch. Returns list of affected file paths."""
@@ -134,24 +135,28 @@ def _parse_hunks(lines: list[str], start: int) -> tuple[list[dict], int]:
             break
 
         if stripped.startswith("@@"):
-            hunk: dict = {"context_before": [], "removals": [], "additions": [], "context_after": []}
+            hunk: dict = {
+                "context_before": [],
+                "removals": [],
+                "additions": [],
+                "context_after": [],
+            }
             i += 1
-            phase = "body"
             while i < len(lines):
-                l = lines[i]
-                stripped_l = l.strip()
+                line = lines[i]
+                stripped_l = line.strip()
                 if stripped_l.startswith("@@") or stripped_l.startswith("*** "):
                     break
-                if l.startswith("-"):
-                    hunk["removals"].append(l[1:])  # strip leading -
-                elif l.startswith("+"):
-                    hunk["additions"].append(l[1:])  # strip leading +
-                elif l.startswith(" "):
+                if line.startswith("-"):
+                    hunk["removals"].append(line[1:])  # strip leading -
+                elif line.startswith("+"):
+                    hunk["additions"].append(line[1:])  # strip leading +
+                elif line.startswith(" "):
                     # Context line — goes to context_before if no removals/additions yet
                     if not hunk["removals"] and not hunk["additions"]:
-                        hunk["context_before"].append(l[1:])
+                        hunk["context_before"].append(line[1:])
                     else:
-                        hunk["context_after"].append(l[1:])
+                        hunk["context_after"].append(line[1:])
                 i += 1
             hunks.append(hunk)
         else:
@@ -205,9 +210,7 @@ def _apply_hunks_to_file(abs_path: str, hunks: list[dict]) -> None:
             match_pos = _find_block(file_lines, old_block_min)
             if match_pos is None:
                 snippet = "\n".join(old_block[:3])
-                raise ValueError(
-                    f"Cannot find matching block in {abs_path}:\n{snippet}..."
-                )
+                raise ValueError(f"Cannot find matching block in {abs_path}:\n{snippet}...")
             # Adjust: replace only the matched portion
             new_block = additions
             file_lines[match_pos : match_pos + len(old_block_min)] = new_block
@@ -228,12 +231,9 @@ def _find_block(file_lines: list[str], block: list[str]) -> int | None:
     """Find the starting line index of *block* in *file_lines* (stripped comparison)."""
     if not block:
         return None
-    block_stripped = [l.strip() for l in block]
+    block_stripped = [line.strip() for line in block]
     for i in range(len(file_lines) - len(block) + 1):
-        if all(
-            file_lines[i + j].strip() == block_stripped[j]
-            for j in range(len(block))
-        ):
+        if all(file_lines[i + j].strip() == block_stripped[j] for j in range(len(block))):
             return i
     return None
 
@@ -317,6 +317,7 @@ class SmartEditorObservation(Observation):
 # Executor
 # ---------------------------------------------------------------------------
 
+
 class _SmartEditorExecutor(ToolExecutor):
     def __init__(self) -> None:
         self._history = _EditHistory()
@@ -364,9 +365,7 @@ class _SmartEditorExecutor(ToolExecutor):
             elif cmd == "undo":
                 return self._do_undo(action, working_dir)
             else:
-                return SmartEditorObservation.from_text(
-                    f"Unknown command: {cmd}", is_error=True
-                )
+                return SmartEditorObservation.from_text(f"Unknown command: {cmd}", is_error=True)
         except Exception as e:
             return SmartEditorObservation.from_text(str(e), is_error=True)
 
@@ -402,9 +401,7 @@ class _SmartEditorExecutor(ToolExecutor):
                 f"Path '{action.path}' is outside the working directory.", is_error=True
             )
         if not os.path.exists(abs_path):
-            return SmartEditorObservation.from_text(
-                f"File not found: {action.path}", is_error=True
-            )
+            return SmartEditorObservation.from_text(f"File not found: {action.path}", is_error=True)
 
         with open(abs_path, encoding="utf-8", errors="replace") as f:
             content = f.read()
@@ -417,7 +414,8 @@ class _SmartEditorExecutor(ToolExecutor):
         if count > 1:
             return SmartEditorObservation.from_text(
                 f"Ambiguous: text occurs {count} times in {action.path}. "
-                f"Provide more context to make the match unique.", is_error=True
+                f"Provide more context to make the match unique.",
+                is_error=True,
             )
 
         self._history.save(abs_path)
@@ -425,9 +423,7 @@ class _SmartEditorExecutor(ToolExecutor):
         with open(abs_path, "w", encoding="utf-8") as f:
             f.write(new_content)
 
-        return SmartEditorObservation.from_text(
-            f"Replaced text in {action.path} successfully."
-        )
+        return SmartEditorObservation.from_text(f"Replaced text in {action.path} successfully.")
 
     # --- insert ---
     def _do_insert(self, action: SmartEditorAction, working_dir: str) -> SmartEditorObservation:
@@ -441,9 +437,7 @@ class _SmartEditorExecutor(ToolExecutor):
                 f"Path '{action.path}' is outside the working directory.", is_error=True
             )
         if not os.path.exists(abs_path):
-            return SmartEditorObservation.from_text(
-                f"File not found: {action.path}", is_error=True
-            )
+            return SmartEditorObservation.from_text(f"File not found: {action.path}", is_error=True)
 
         with open(abs_path, encoding="utf-8", errors="replace") as f:
             lines = f.readlines()
@@ -499,9 +493,7 @@ class _SmartEditorExecutor(ToolExecutor):
                 f"Path '{action.path}' is outside the working directory.", is_error=True
             )
         if not os.path.exists(abs_path):
-            return SmartEditorObservation.from_text(
-                f"File not found: {action.path}", is_error=True
-            )
+            return SmartEditorObservation.from_text(f"File not found: {action.path}", is_error=True)
 
         self._history.save(abs_path)
         os.remove(abs_path)
@@ -532,6 +524,7 @@ class _SmartEditorExecutor(ToolExecutor):
 # ---------------------------------------------------------------------------
 # Tool definition & registration
 # ---------------------------------------------------------------------------
+
 
 class SmartEditorTool(ToolDefinition[SmartEditorAction, SmartEditorObservation]):
     @classmethod

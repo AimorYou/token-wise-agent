@@ -6,8 +6,6 @@ that work correctly despite the file filtering bug.
 import os
 import tempfile
 
-import pytest
-
 from src.cli import main
 
 
