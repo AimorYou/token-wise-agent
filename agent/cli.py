@@ -70,13 +70,10 @@ def _build_llm_kwargs(config: AgentConfig) -> dict:
 def interactive_mode(config: AgentConfig, console: Console) -> None:
     """Persistent interactive chat session with the agent."""
     if not config.api_key:
-        env_path = USER_CONFIG_DIR / ".env"
         console.print(
-            f"[red]Error: no API key found.[/red]\n\n"
-            f"Create [bold]{env_path}[/bold] with:\n"
-            f"  [dim]AGENT_API_KEY=sk-...[/dim]\n"
-            f"  [dim]AGENT_MODEL=anthropic/claude-sonnet-4-6  # optional[/dim]\n\n"
-            f"Or pass it directly: [bold]twa --api-key sk-...[/bold]"
+            "[red]Error: no API key found.[/red]\n\n"
+            "Run [bold]twa edit[/bold] and set [bold]AGENT_API_KEY[/bold].\n"
+            "Or pass it directly: [bold]twa --api-key sk-...[/bold]"
         )
         sys.exit(1)
 
@@ -166,9 +163,6 @@ def interactive_mode(config: AgentConfig, console: Console) -> None:
             console.print(f"[bold red]Error:[/bold red] {exc}\n")
             continue
 
-        populate_from_llm_metrics(tracker, agent)
-        populate_from_events(tracker, conversation.state.events)
-
         if final:
             console.print(Panel(
                 final,
@@ -176,12 +170,6 @@ def interactive_mode(config: AgentConfig, console: Console) -> None:
                 border_style="green",
                 padding=(1, 2),
             ))
-
-        summary = tracker.summary()
-        cost = summary.get("cost_usd", 0.0)
-        turn_cost = cost - prev_cost
-        prev_cost = cost
-        console.print(f"\n[dim]  ${turn_cost:.4f} this turn · ${cost:.4f} total[/dim]\n")
 
     tracker.stop()
 
@@ -325,12 +313,10 @@ def main() -> None:
         return
 
     if not config.api_key:
-        env_path = USER_CONFIG_DIR / ".env"
         console.print(
-            f"[red]Error: no API key found.[/red]\n\n"
-            f"Create [bold]{env_path}[/bold] with:\n"
-            f"  [dim]AGENT_API_KEY=sk-...[/dim]\n\n"
-            f"Or pass it directly: [bold]twa --api-key sk-...[/bold]"
+            "[red]Error: no API key found.[/red]\n\n"
+            "Run [bold]twa edit[/bold] and set [bold]AGENT_API_KEY[/bold].\n"
+            "Or pass it directly: [bold]twa --api-key sk-...[/bold]"
         )
         sys.exit(1)
 
