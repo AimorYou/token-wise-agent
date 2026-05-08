@@ -91,6 +91,7 @@ def _patch_llm_aliases(llm: LLM) -> None:
         def _make_patched(orig):
             def _patched(*a, **kw):
                 return _apply_aliases(orig(*a, **kw))
+
             return _patched
 
         object.__setattr__(llm, method_name, _make_patched(original))
