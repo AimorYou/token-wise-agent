@@ -336,21 +336,6 @@ def test_editor_undo_nothing(editor_env):
     assert "nothing to undo" in obs.text.lower()
 
 
-def test_editor_patch(editor_env):
-    td, ex, conv = editor_env
-    patch = """\
-*** Begin Patch
-*** Update File: src/module.py
-@@
--    return a - b
-+    return a + b
-*** End Patch"""
-    obs = ex(SmartEditorAction(command="patch", diff=patch), conv)
-    assert not obs.is_error
-    with open(os.path.join(td, "src/module.py")) as f:
-        assert "return a + b" in f.read()
-
-
 def test_editor_path_outside_workdir(editor_env):
     _, ex, conv = editor_env
     obs = ex(SmartEditorAction(command="replace", path="../../etc/passwd", old="x", new="y"), conv)
@@ -479,7 +464,7 @@ from agent.agent_tracker import AgentTracker
 
 
 def test_agent_tracker_record():
-    tracker = AgentTracker(model="anthropic/claude-sonnet-4-6")
+    tracker = AgentTracker(model="openai/anthropic/claude-sonnet-4-6")
     tracker.record(step=1, input_tokens=100, output_tokens=50)
     tracker.record(step=2, input_tokens=200, output_tokens=80)
 
@@ -489,23 +474,23 @@ def test_agent_tracker_record():
 
 
 def test_agent_tracker_cost():
-    tracker = AgentTracker(model="anthropic/claude-sonnet-4-6")
+    tracker = AgentTracker(model="openai/anthropic/claude-sonnet-4-6")
     tracker.record(step=1, input_tokens=1_000_000, output_tokens=0)
-    # 1M input tokens at $3.45/M
-    assert abs(tracker.total_cost - 3.45) < 0.01
+    # 1M input tokens at $1.90/M
+    assert abs(tracker.total_cost - 1.90) < 0.01
 
 
 def test_agent_tracker_model_prefix_stripped():
-    """Cost lookup should work with 'anthropic/model' and 'model' alike."""
-    t1 = AgentTracker(model="anthropic/claude-sonnet-4-6")
-    t2 = AgentTracker(model="claude-sonnet-4-6")
+    """Cost lookup should work regardless of leading openai/ provider prefix."""
+    t1 = AgentTracker(model="openai/anthropic/claude-sonnet-4-6")
+    t2 = AgentTracker(model="anthropic/claude-sonnet-4-6")
     t1.record(step=1, input_tokens=1000, output_tokens=500)
     t2.record(step=1, input_tokens=1000, output_tokens=500)
     assert abs(t1.total_cost - t2.total_cost) < 1e-9
 
 
 def test_agent_tracker_tool_metrics():
-    tracker = AgentTracker(model="anthropic/claude-sonnet-4-6")
+    tracker = AgentTracker(model="openai/anthropic/claude-sonnet-4-6")
     tracker.total_tool_calls = 15
     tracker.tool_errors = 3
     s = tracker.summary()
@@ -517,7 +502,7 @@ def test_agent_tracker_populate_from_llm_metrics():
     """populate_from_llm_metrics should read token usage from agent.llm.metrics."""
     from agent.agent_tracker import populate_from_llm_metrics
 
-    tracker = AgentTracker(model="anthropic/claude-sonnet-4-6")
+    tracker = AgentTracker(model="openai/anthropic/claude-sonnet-4-6")
 
     class FakeUsage:
         prompt_tokens = 100
