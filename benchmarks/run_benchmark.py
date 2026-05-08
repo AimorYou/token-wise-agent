@@ -42,7 +42,7 @@ from rich.table import Table
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from agent.config import AgentYamlConfig, USER_CONFIG_DIR
+from agent.config import USER_CONFIG_DIR, AgentYamlConfig
 from agent.trajectory import get_trajectory_path
 from agent.utils import read_submission
 

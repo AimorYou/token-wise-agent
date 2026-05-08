@@ -53,8 +53,8 @@ from agent.config import (
     AgentConfig,
     AgentYamlConfig,
 )
-from agent.trajectory import get_last_trajectory_path, get_trajectory_path, write_trajectory
 from agent.tools.tree import _render_tree
+from agent.trajectory import get_last_trajectory_path, get_trajectory_path, write_trajectory
 from agent.utils import read_submission
 
 _MAX_RECOVERY_ATTEMPTS = 3
@@ -87,8 +87,13 @@ def _patch_llm_aliases(llm: LLM) -> None:
         if not hasattr(llm, method_name):
             continue
         original = getattr(llm, method_name)
-        patched = lambda *a, orig=original, **kw: _apply_aliases(orig(*a, **kw))
-        object.__setattr__(llm, method_name, patched)
+
+        def _make_patched(orig):
+            def _patched(*a, **kw):
+                return _apply_aliases(orig(*a, **kw))
+            return _patched
+
+        object.__setattr__(llm, method_name, _make_patched(original))
 
 
 def _build_llm_kwargs(config: AgentConfig) -> dict:
