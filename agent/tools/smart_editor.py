@@ -2,7 +2,6 @@
 SmartEditorTool — безопасное и точное редактирование файлов агентом.
 
 Поддерживаемые команды:
-  patch   — применяет изменения в формате unified-style patch (основной способ)
   replace — точечная замена фрагмента (old → new), old должен встречаться ровно 1 раз
   insert  — вставка текста после указанной строки
   create  — создание нового файла
@@ -14,7 +13,6 @@ SmartEditorTool — безопасное и точное редактирова�
 """
 
 import os
-import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
@@ -69,194 +67,11 @@ class _EditHistory:
 
 
 # ---------------------------------------------------------------------------
-# Patch parser  (*** Begin Patch … *** End Patch)
-# ---------------------------------------------------------------------------
-
-
-def _apply_patch(patch_text: str, working_dir: str) -> list[str]:
-    """Parse and apply a structured patch. Returns list of affected file paths."""
-    lines = patch_text.splitlines()
-    affected: list[str] = []
-
-    i = 0
-    # Skip to *** Begin Patch (or treat whole text as patch body)
-    while i < len(lines) and not lines[i].strip().startswith("*** Begin Patch"):
-        i += 1
-    if i < len(lines):
-        i += 1  # skip the Begin Patch line
-
-    while i < len(lines):
-        line = lines[i].strip()
-
-        if line.startswith("*** End Patch"):
-            break
-
-        if line.startswith("*** Update File:"):
-            rel_path = line.split(":", 1)[1].strip()
-            abs_path = os.path.join(working_dir, rel_path)
-            hunks, i = _parse_hunks(lines, i + 1)
-            _apply_hunks_to_file(abs_path, hunks)
-            affected.append(rel_path)
-
-        elif line.startswith("*** Add File:"):
-            rel_path = line.split(":", 1)[1].strip()
-            abs_path = os.path.join(working_dir, rel_path)
-            content_lines, i = _parse_add_content(lines, i + 1)
-            os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-            with open(abs_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(content_lines))
-                if content_lines:
-                    f.write("\n")
-            affected.append(rel_path)
-
-        elif line.startswith("*** Delete File:"):
-            rel_path = line.split(":", 1)[1].strip()
-            abs_path = os.path.join(working_dir, rel_path)
-            if os.path.exists(abs_path):
-                os.remove(abs_path)
-            affected.append(rel_path)
-
-        else:
-            i += 1
-            continue
-
-    return affected
-
-
-def _parse_hunks(lines: list[str], start: int) -> tuple[list[dict], int]:
-    """Parse consecutive @@ hunks until next *** directive or end."""
-    hunks: list[dict] = []
-    i = start
-
-    while i < len(lines):
-        stripped = lines[i].strip()
-
-        if stripped.startswith("*** "):
-            break
-
-        if stripped.startswith("@@"):
-            hunk: dict = {
-                "context_before": [],
-                "removals": [],
-                "additions": [],
-                "context_after": [],
-            }
-            i += 1
-            while i < len(lines):
-                line = lines[i]
-                stripped_l = line.strip()
-                if stripped_l.startswith("@@") or stripped_l.startswith("*** "):
-                    break
-                if line.startswith("-"):
-                    hunk["removals"].append(line[1:])  # strip leading -
-                elif line.startswith("+"):
-                    hunk["additions"].append(line[1:])  # strip leading +
-                elif line.startswith(" "):
-                    # Context line — goes to context_before if no removals/additions yet
-                    if not hunk["removals"] and not hunk["additions"]:
-                        hunk["context_before"].append(line[1:])
-                    else:
-                        hunk["context_after"].append(line[1:])
-                i += 1
-            hunks.append(hunk)
-        else:
-            i += 1
-
-    return hunks, i
-
-
-def _parse_add_content(lines: list[str], start: int) -> tuple[list[str], int]:
-    """Parse content lines for *** Add File (all lines until next ***)."""
-    content: list[str] = []
-    i = start
-    while i < len(lines):
-        if lines[i].strip().startswith("*** "):
-            break
-        line = lines[i]
-        # Strip leading + if present (patch format)
-        if line.startswith("+"):
-            line = line[1:]
-        content.append(line)
-        i += 1
-    return content, i
-
-
-def _apply_hunks_to_file(abs_path: str, hunks: list[dict]) -> None:
-    """Apply parsed hunks to a file."""
-    if not os.path.exists(abs_path):
-        raise FileNotFoundError(f"File not found: {abs_path}")
-
-    with open(abs_path, encoding="utf-8", errors="replace") as f:
-        file_lines = f.read().splitlines()
-
-    for hunk in hunks:
-        ctx = hunk["context_before"]
-        removals = hunk["removals"]
-        additions = hunk["additions"]
-        ctx_after = hunk["context_after"]
-
-        # Build the "old" block = context_before + removals + context_after
-        old_block = ctx + removals + ctx_after
-        if not old_block:
-            # No context/removals — just append additions at end
-            file_lines.extend(additions)
-            continue
-
-        # Find the old block in file
-        match_pos = _find_block(file_lines, old_block)
-        if match_pos is None:
-            # Try fuzzy: just removals with context
-            old_block_min = removals if removals else ctx
-            match_pos = _find_block(file_lines, old_block_min)
-            if match_pos is None:
-                snippet = "\n".join(old_block[:3])
-                raise ValueError(f"Cannot find matching block in {abs_path}:\n{snippet}...")
-            # Adjust: replace only the matched portion
-            new_block = additions
-            file_lines[match_pos : match_pos + len(old_block_min)] = new_block
-            continue
-
-        # Replace: keep context_before, swap removals for additions, keep context_after
-        start = match_pos + len(ctx)
-        end = start + len(removals)
-        file_lines[start:end] = additions
-
-    with open(abs_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(file_lines))
-        if file_lines:
-            f.write("\n")
-
-
-def _find_block(file_lines: list[str], block: list[str]) -> int | None:
-    """Find the starting line index of *block* in *file_lines* (stripped comparison)."""
-    if not block:
-        return None
-    block_stripped = [line.strip() for line in block]
-    for i in range(len(file_lines) - len(block) + 1):
-        if all(file_lines[i + j].strip() == block_stripped[j] for j in range(len(block))):
-            return i
-    return None
-
-
-# ---------------------------------------------------------------------------
 # Action / Observation
 # ---------------------------------------------------------------------------
 
 TOOL_DESCRIPTION = """\
-Edit files safely and precisely. Supports six commands:
-
-**patch** (preferred) — Apply changes in structured patch format:
-  ```
-  *** Begin Patch
-  *** Update File: src/module.py
-  @@
-   context line before
-  -old line to remove
-  +new line to add
-   context line after
-  *** End Patch
-  ```
-  Can update, add, or delete multiple files in one patch.
+Edit files safely and precisely. Supports five commands:
 
 **replace** — Replace exact text. `old` must occur exactly once in the file.
 **insert** — Insert text after a given line number.
@@ -264,25 +79,19 @@ Edit files safely and precisely. Supports six commands:
 **delete** — Delete a file.
 **undo** — Undo the last edit (optionally for a specific file).
 
-Always prefer `patch` for code changes — it's compact and handles multi-file edits.
-Use `replace` for small single-occurrence fixes.
+Use `replace` for precise single-occurrence fixes.
 """
 
 
 class SmartEditorAction(Action):
     """Edit a file using one of the supported commands."""
 
-    command: Literal["patch", "replace", "insert", "create", "delete", "undo"] = Field(
+    command: Literal["replace", "insert", "create", "delete", "undo"] = Field(
         description="The editing command to execute."
     )
     path: str | None = Field(
         default=None,
         description="File path (relative to working dir). Required for replace/insert/create/delete. Optional for undo.",
-    )
-    # patch
-    diff: str | None = Field(
-        default=None,
-        description="Patch content in *** Begin Patch format. Required for 'patch' command.",
     )
     # replace
     old: str | None = Field(
@@ -352,9 +161,7 @@ class _SmartEditorExecutor(ToolExecutor):
         cmd = action.command
 
         try:
-            if cmd == "patch":
-                return self._do_patch(action, working_dir)
-            elif cmd == "replace":
+            if cmd == "replace":
                 return self._do_replace(action, working_dir)
             elif cmd == "insert":
                 return self._do_insert(action, working_dir)
@@ -368,26 +175,6 @@ class _SmartEditorExecutor(ToolExecutor):
                 return SmartEditorObservation.from_text(f"Unknown command: {cmd}", is_error=True)
         except Exception as e:
             return SmartEditorObservation.from_text(str(e), is_error=True)
-
-    # --- patch ---
-    def _do_patch(self, action: SmartEditorAction, working_dir: str) -> SmartEditorObservation:
-        if not action.diff:
-            return SmartEditorObservation.from_text(
-                "patch command requires 'diff' parameter.", is_error=True
-            )
-        # Save history for all files mentioned in patch
-        file_paths = re.findall(
-            r"\*\*\*\s+(?:Update|Add|Delete)\s+File:\s*(.+)",
-            action.diff,
-        )
-        for rel in file_paths:
-            abs_path = os.path.join(working_dir, rel.strip())
-            self._history.save(abs_path)
-
-        affected = _apply_patch(action.diff, working_dir)
-        return SmartEditorObservation.from_text(
-            f"Patch applied successfully to {len(affected)} file(s): {', '.join(affected)}"
-        )
 
     # --- replace ---
     def _do_replace(self, action: SmartEditorAction, working_dir: str) -> SmartEditorObservation:
