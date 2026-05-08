@@ -42,7 +42,7 @@ from rich.table import Table
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from agent.config import AgentYamlConfig
+from agent.config import AgentYamlConfig, USER_CONFIG_DIR
 from agent.trajectory import get_trajectory_path
 from agent.utils import read_submission
 
@@ -206,6 +206,8 @@ def run_agent_docker(
         extra_mounts = ["-v", f"{host_cfg}:{config_in_container}:ro"]
 
     env_file = PROJECT_ROOT / ".env"
+    if not env_file.exists():
+        env_file = USER_CONFIG_DIR / ".env"
     traj_output = f"/testbed/{task_id}.traj.json" if task_id else "/testbed/trajectory.traj.json"
     agent_args = _build_agent_cmd(
         "/testbed",
@@ -239,6 +241,8 @@ def run_agent_docker(
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         latency, submitted, explanation = _collect_result(workspace, start)
         _collect_trajectory(workspace, run_id, task_id)
+        if result.returncode != 0:
+            console.print(f"  [red]Agent exited {result.returncode}:[/red] {result.stderr[:300]}")
         return {
             "latency": latency,
             "submitted": submitted,
