@@ -11,7 +11,10 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Copy agent code (configs are bundled inside agent/)
 COPY agent/ ./agent/
 
+# Install the project itself
+RUN uv sync --frozen --no-dev
+
 # Task workspace is mounted at runtime: -v /host/task:/testbed
 # API keys are passed via --env-file .env or -e flags
 
-ENTRYPOINT ["uv", "run", "python", "-m", "agent"]
+ENTRYPOINT ["uv", "run", "twa"]

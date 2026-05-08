@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
 name = "token-wise-agent"
-dynamic = ["version"]
+version = "1.0.3"
 description = "AI coding assistant with pluggable tools and token tracking, built on OpenHands SDK"
 requires-python = ">=3.12"
 dependencies = [
@@ -15,9 +15,6 @@ dependencies = [
 
 [project.scripts]
 twa = "agent.cli:main"
-
-[tool.hatch.version]
-source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["agent"]
@@ -39,7 +36,6 @@ known-first-party = ["agent"]
 
 [dependency-groups]
 dev = [
-    "hatch-vcs>=0.4.0",
     "numpy>=1.26.0",
     "pandas>=2.2.0",
     "pre-commit>=4.0.0",

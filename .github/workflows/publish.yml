@@ -13,8 +13,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # full history so hatch-vcs can compute version from tags
 
       - uses: astral-sh/setup-uv@v5
 
