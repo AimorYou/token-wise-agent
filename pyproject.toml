@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "token-wise-agent"
-version = "1.0.3"
+version = "1.0.4"
 description = "AI coding assistant with pluggable tools and token tracking, built on OpenHands SDK"
 requires-python = ">=3.12"
 dependencies = [
