@@ -64,7 +64,7 @@ def write_trajectory(
     submission_content: str = "",
 ) -> None:
     """Write full run trajectory to a .traj.json file."""
-    from openhands.sdk.event import ActionEvent, ObservationEvent
+    from openhands.sdk.event import ActionEvent, AgentErrorEvent, ObservationEvent
 
     yaml_cfg = config.yaml_config
     finished_at = _now_iso()
@@ -101,6 +101,11 @@ def write_trajectory(
                 _, tc_id = flat_pending.popleft()
             if tc_id:
                 tool_results[tc_id] = _obs_text(event)
+        elif isinstance(event, AgentErrorEvent):
+            tc_id = getattr(event, "tool_call_id", None)
+            if tc_id:
+                flat_pending.popleft()
+                tool_results[tc_id] = getattr(event, "error", "")
 
     # ------------------------------------------------------------------ #
     # Build messages array                                                 #
