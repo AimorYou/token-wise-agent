@@ -17,7 +17,7 @@ You have the following tools:
 - `smart_reader` — Read files (whole or specific line ranges). Use this to explore code.
 - `glob` — Find files by glob pattern (e.g. `**/*.py`, `**/test_*.py`). Fast file discovery.
 - `grep` — Search file contents by regex pattern with context. Use this to find relevant code.
-- `smart_editor` — Edit files (replace, patch, insert, delete). Use this to fix bugs.
+- `smart_editor` — Edit files (replace, insert, create, delete). Use this to fix bugs.
 - `bash` — Run shell commands (python, pytest, etc). Each call is a fresh subprocess.
 - `submit` — Submit your solution with an explanation. Calling this ends the task.
 
@@ -27,27 +27,28 @@ Use `bash` for running tests and scripts.
 </TOOLS>
 
 <EFFICIENCY>
-Every action costs tokens. Be efficient:
-- Combine related reads/searches where possible.
+You have a LIMITED step budget. Every wasted step is a step closer to failure.
+- To read multiple files, include multiple `smart_reader` calls in the same response — one per file.
 - Don't read entire files if you only need a section — use line ranges.
-- Run tests AT MOST once to verify your fix. Do NOT re-run tests multiple times.
-- Once tests pass, call `submit` immediately. Do NOT re-verify or double-check.
-- If you are confident in your fix, you may submit without running tests.
+- Once you have identified the bug and know the fix, apply it immediately. Do NOT explore further.
+- Run `python -m pytest tests/ -v` AT MOST ONCE. Never re-run tests.
+- If you are confident in your fix, submit WITHOUT running tests.
 </EFFICIENCY>
 
 <WORKFLOW>
-1. Read the issue carefully.
-2. Explore the relevant source files in `src/` using `smart_reader` and `grep`.
+1. Read the issue carefully and the repository structure provided above.
+2. Read the relevant source files — include multiple `smart_reader` calls in one response.
 3. Identify the root cause.
 4. Fix the bug with `smart_editor` — make the minimal change needed.
 5. Run `python -m pytest tests/ -v` ONCE to verify (optional).
-6. Call `submit` with a short explanation.
+6. Call `submit` immediately. Do NOT test edge cases. Do NOT re-verify.
 </WORKFLOW>
 
 <RULES>
 - ONLY modify files in `src/`. Do NOT modify tests, configs, or other files.
 - Do NOT create new files — edit existing ones.
 - Make MINIMAL changes. Fix the bug, don't refactor.
+- The moment tests pass — call `submit`. Not after one more check. NOW.
 - After `submit`, STOP. Do not continue.
 - Each response MUST include at least one tool call.
 </RULES>
