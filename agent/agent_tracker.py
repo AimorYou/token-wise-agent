@@ -48,7 +48,7 @@ class StepUsage:
     def cost(self, model: str) -> float:
         parts = model.split("/")
         key = "/".join(parts[1:]) if len(parts) > 1 else model
-        pricing = MODEL_PRICING.get(key, {})
+        pricing = MODEL_PRICING.get(model) or MODEL_PRICING.get(key, {})
         if not pricing:
             return 0.0
         return (
