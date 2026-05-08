@@ -54,9 +54,41 @@ from agent.config import (
     AgentYamlConfig,
 )
 from agent.trajectory import get_last_trajectory_path, get_trajectory_path, write_trajectory
+from agent.tools.tree import _render_tree
 from agent.utils import read_submission
 
 _MAX_RECOVERY_ATTEMPTS = 3
+
+_TOOL_ALIASES: dict[str, str] = {
+    "read": "smart_reader",
+    "read_file": "smart_reader",
+    "read_files": "smart_reader",
+    "view_file": "smart_reader",
+    "view": "smart_reader",
+    "cat": "bash",
+    "write_file": "smart_editor",
+    "edit_file": "smart_editor",
+}
+
+
+def _apply_aliases(response):
+    if response.message and response.message.tool_calls:
+        for tc in response.message.tool_calls:
+            if tc.name in _TOOL_ALIASES:
+                tc.name = _TOOL_ALIASES[tc.name]
+    return response
+
+
+def _patch_llm_aliases(llm: LLM) -> None:
+    """Patch LLM via object.__setattr__ to bypass Pydantic restriction.
+    Must stay type(llm) == LLM (not subclass) so get_all_llms() picks it up.
+    """
+    for method_name in ("completion", "responses"):
+        if not hasattr(llm, method_name):
+            continue
+        original = getattr(llm, method_name)
+        patched = lambda *a, orig=original, **kw: _apply_aliases(orig(*a, **kw))
+        object.__setattr__(llm, method_name, patched)
 
 
 def _build_llm_kwargs(config: AgentConfig) -> dict:
@@ -86,8 +118,10 @@ def interactive_mode(config: AgentConfig, console: Console) -> None:
         sys.exit(1)
 
     tools = build_tools(config.yaml_config)
+    _llm = LLM(**_build_llm_kwargs(config))
+    _patch_llm_aliases(_llm)
     agent = Agent(
-        llm=LLM(**_build_llm_kwargs(config)),
+        llm=_llm,
         tools=tools,
         system_prompt_filename=config.yaml_config.system_prompt_path,
         include_default_tools=config.yaml_config.include_default_tools,
@@ -98,6 +132,7 @@ def interactive_mode(config: AgentConfig, console: Console) -> None:
         workspace=config.working_dir,
         max_iteration_per_run=config.effective_max_steps,
         visualizer=DefaultConversationVisualizer,
+        stuck_detection_thresholds={"action_error": 6},
     )
 
     console.print()
@@ -249,18 +284,15 @@ def _edit_config(target: str, console: Console) -> None:
 
 
 def main() -> None:
+    if len(sys.argv) >= 2 and sys.argv[1] == "edit":
+        target = sys.argv[2] if len(sys.argv) >= 3 and sys.argv[2] in ("env", "config") else "env"
+        _ensure_user_config_dir()
+        _edit_config(target, Console())
+        return
+
     parser = argparse.ArgumentParser(
         prog="twa",
         description="Token-Wise Agent — an AI coding assistant",
-    )
-    subparsers = parser.add_subparsers(dest="command")
-    edit_parser = subparsers.add_parser("edit", help="Edit configuration files")
-    edit_parser.add_argument(
-        "file",
-        nargs="?",
-        choices=["env", "config"],
-        default="env",
-        help="Which file to edit: env (default) or config",
     )
 
     parser.add_argument("task", nargs="?", help="Task for the agent to solve")
@@ -294,11 +326,6 @@ def main() -> None:
     args = parser.parse_args()
 
     _ensure_user_config_dir()
-
-    if args.command == "edit":
-        console = Console()
-        _edit_config(args.file, console)
-        return
 
     config = AgentConfig()
     if args.agent_config:
@@ -353,21 +380,28 @@ def main() -> None:
     except OSError:
         system_prompt = system_prompt_path
 
+    _llm = LLM(**_build_llm_kwargs(config))
+    _patch_llm_aliases(_llm)
     agent = Agent(
-        llm=LLM(**_build_llm_kwargs(config)),
+        llm=_llm,
         tools=tools,
         system_prompt_filename=system_prompt_path,
         include_default_tools=config.yaml_config.include_default_tools,
     )
 
     visualizer = DefaultConversationVisualizer if config.verbose else None
-    rendered_task = config.yaml_config.render_instance(args.task)
+    tree_output = _render_tree(config.working_dir, config.working_dir, 2)
+    rendered_task = (
+        f"<repository_structure>\n{tree_output}\n</repository_structure>\n\n"
+        + config.yaml_config.render_instance(args.task)
+    )
 
     conversation = LocalConversation(
         agent=agent,
         workspace=config.working_dir,
         max_iteration_per_run=config.effective_max_steps,
         visualizer=visualizer,
+        stuck_detection_thresholds={"action_error": 6},
     )
     exit_status = "submitted"
     started_at = datetime.now().astimezone().isoformat()
