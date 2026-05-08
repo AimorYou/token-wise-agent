@@ -21,7 +21,7 @@ agent/cli.py                    ← CLI entry point (twa)
         ├── GlobTool        ← кастомный: поиск файлов по glob-паттерну
         ├── GrepTool        ← кастомный: regex-поиск с контекстом
         ├── SmartReaderTool ← кастомный: чтение файла с диапазоном строк и контекстом
-        ├── SmartEditorTool ← кастомный: редактирование файлов (patch/replace/insert/undo)
+        ├── SmartEditorTool ← кастомный: редактирование файлов (replace/insert/create/delete/undo)
         ├── SubmitTool      ← кастомный: сигнал завершения задачи (SWE-bench режим)
         └── ThinkTool       ← SDK built-in: внутренние размышления
 ```
@@ -32,6 +32,7 @@ token-wise-agent/
 │   ├── cli.py                    # CLI entry point
 │   ├── config.py                 # Загрузка конфига (.env + YAML + CLI)
 │   ├── agent_tracker.py          # Трекинг метрик агента (токены, стоимость, вызовы)
+│   ├── trajectory.py             # Сохранение траектории в .traj.json
 │   ├── configs/
 │   │   ├── agent_config.yaml     # SWE-bench режим: промпты, tools, step_limit
 │   │   ├── agent_config_user.yaml# Интерактивный режим
@@ -46,13 +47,14 @@ token-wise-agent/
 │       ├── grep.py
 │       ├── smart_reader.py
 │       ├── smart_editor.py
-│       └── submit.py
+│       ├── submit.py
+│       └── tree.py               # Авто-инъекция структуры репозитория
 ├── benchmarks/
 │   ├── run_benchmark.py          # SWE-Bench-style раннер
 │   └── tasks/                    # 10 задач с багами и тестами
 ├── tests/
 │   └── test_tools.py
-├── .env                          # Секреты (не в git)
+├── Dockerfile                    # Образ для запуска агента в изоляции
 └── .env.example
 ```
 
@@ -106,7 +108,7 @@ twa -i --working-dir /path/to/project  # другая рабочая дирек�
 ```bash
 twa "Fix the failing tests in tests/"     # запустить агента на задаче
 twa --quiet "задача"                      # без вывода агента
-twa --model anthropic/claude-opus-4-6 "задача"
+twa --model anthropic/claude-opus-4.7 "задача"
 twa --working-dir /path/to/project "задача"
 twa --list-tools                          # список инструментов из конфига
 ```
@@ -130,39 +132,43 @@ twa edit config    # редактировать agent_config_user.yaml
 |---|---|
 | `AGENT_API_KEY` | API ключ |
 | `AGENT_BASE_URL` | Кастомный API endpoint (для OpenAI-совместимых сервисов) |
-| `AGENT_MODEL` | litellm model ID (по умолчанию `anthropic/claude-sonnet-4-6`) |
+| `AGENT_MODEL` | litellm model ID (например `anthropic/claude-sonnet-4-6`) |
 
-### `agent/configs/` — поведение агента
+### `~/.config/token-wise-agent/agent_config_user.yaml` — поведение агента
 
 ```yaml
 agent:
-  system_template: "system_prompt.j2"   # промпт из agent/prompts/
+  system_template: "system_prompt_user.j2"
   llm_params:
-    temperature: 0.0
-  step_limit: 30
+    temperature: 0.5
+  step_limit: 50
   tools:
+    - think
     - bash
     - glob
     - grep
     - smart_reader
     - smart_editor
-    - submit
 ```
 
-Два готовых конфига:
-- `agent_config.yaml` — SWE-bench режим (`step_limit: 30`, `temperature: 0.0`)
-- `agent_config_user.yaml` — интерактивный режим (`step_limit: 50`, `temperature: 0.5`, без `submit`)
+Редактируется через `twa edit config`. Два готовых конфига в пакете:
+- `agent_config.yaml` — SWE-bench режим (`step_limit: 30`, `temperature: 0.0`, включён `submit`)
+- `agent_config_user.yaml` — интерактивный режим (`step_limit: 50`, `temperature: 0.5`)
 
 ### `agent/configs/pricing.yaml` — стоимость токенов
 
 ```yaml
 # Цена за миллион токенов (USD)
-claude-sonnet-4-6:
-  input: 3.45
-  output: 17.25
+anthropic/claude-sonnet-4-6:
+  input: 1.90
+  output: 9.54
+
+anthropic/claude-opus-4.7:
+  input: 6.10
+  output: 30.49
 ```
 
-Используется для подсчёта стоимости и передаётся в LiteLLM. Добавьте новую модель сюда — стоимость подхватится автоматически.
+Используется для подсчёта стоимости и передаётся в LiteLLM. Добавьте новую модель — стоимость подхватится автоматически.
 
 ### CLI аргументы
 
@@ -186,28 +192,47 @@ claude-sonnet-4-6:
 | `glob` | Кастомный | Поиск файлов по glob-паттерну (сортировка по mtime) |
 | `grep` | Кастомный | Regex-поиск по файлам с N строками контекста |
 | `smart_reader` | Кастомный | Чтение файла: диапазон строк, контекст вокруг строки, авто-truncation |
-| `smart_editor` | Кастомный | Редактирование файлов: patch, replace, insert, create, delete, undo |
+| `smart_editor` | Кастомный | Редактирование файлов: replace, insert, create, delete, undo |
 | `submit` | Кастомный | Сигнал завершения — останавливает агента (SWE-bench режим) |
 | `think` | SDK built-in | Внутренние размышления перед действием |
+
+> **Алиасы инструментов.** Если модель вызывает `read_file`, `read_files`, `view_file` или `view` —
+> они прозрачно перенаправляются на `smart_reader` без лишних ошибок и потери шагов.
 
 ---
 
 ## Бенчмарк
 
-10 SWE-Bench-style задач для тестирования агента. Подробности — в [benchmarks/README.md](benchmarks/README.md).
+10 SWE-Bench-style задач. Структура каждой задачи:
+
+```
+task_XXX/
+├── issue.md       — описание бага
+├── src/           — код с багом
+├── tests/         — тесты (видны агенту)
+└── gold_tests/    — золотые тесты (скрыты, запускаются после submit)
+```
+
+### Локальный запуск
 
 ```bash
 uv run python benchmarks/run_benchmark.py              # все задачи
 uv run python benchmarks/run_benchmark.py task_001     # одна задача
 uv run python benchmarks/run_benchmark.py --quiet task_001
+uv run python benchmarks/run_benchmark.py --model anthropic/claude-opus-4.7 task_001
 uv run python benchmarks/run_benchmark.py --save results.json
 ```
 
-Анализ результатов:
+### Docker-режим (изолированное окружение)
 
 ```bash
-uv run python scripts/analyze_trajectory.py run_2026-04-11_15-40-56
+uv run python benchmarks/run_benchmark.py --docker --docker-build task_001
+uv run python benchmarks/run_benchmark.py --docker task_001 task_003
+uv run python benchmarks/run_benchmark.py --docker --docker-image myrepo/agent:v1
 ```
+
+В Docker-режиме код задачи монтируется в `/testbed`, агентский код живёт в `/app` образа.
+API-ключи пробрасываются через `--env-file ~/.config/token-wise-agent/.env`.
 
 ---
 
@@ -251,6 +276,16 @@ CI запускается автоматически на каждый push в `
 │                    │             │
 │ Total cost         │     $0.0414 │
 └────────────────────┴─────────────┘
+```
+
+Полная траектория каждого запуска сохраняется в `~/.config/token-wise-agent/`:
+
+```
+~/.config/token-wise-agent/
+├── last_twa_run.traj.json          # последний одноразовый запуск
+└── run_YYYY-MM-DD_HH-MM-SS/
+    ├── task_001.traj.json
+    └── task_002.traj.json
 ```
 
 ---
